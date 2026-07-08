@@ -1161,10 +1161,10 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                   Publish
                 </button>
               ) : null}
+              {showRowMenuRepublish ? <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { onRowRepublish?.(rowMenu.rowId); setRowMenu(null); }}>Republish</button> : null}
               <button type="button" role="menuitem" disabled={isRowMenuDeleteDisabled} className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { if (isRowMenuDeleteDisabled) return; const id = rowMenu.rowId; setRowMenu(null); setRowDeleteConfirmId(id); }}>
                 {rowMenuRow?.status === "Draft" ? "Delete" : "Void"}
               </button>
-              {showRowMenuRepublish ? <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { onRowRepublish?.(rowMenu.rowId); setRowMenu(null); }}>Republish</button> : null}
             </div>,
             document.body,
           )

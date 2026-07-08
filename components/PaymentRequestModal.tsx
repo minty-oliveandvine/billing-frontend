@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import { PdfJsCanvasPreview } from "@/components/PdfJsCanvasPreview";
-import { formatFileSize, FullFilePreviewLink, isImageFile, isPdfFile } from "@/lib/fileAttachmentPreview";
+import { formatFileSize, FullFilePreviewLink, isImageFile, isPdfFile, isHtmlFile, isAllowedFileType, ATTACHMENT_EXTENSIONS, ATTACHMENT_MIME_TYPES } from "@/lib/fileAttachmentPreview";
 import { saveAttachmentBlobs } from "@/lib/paymentRequestAttachmentStore";
 import { ThemedSelect, type ThemedSelectOption } from "@/components/ThemedSelect";
 
@@ -38,6 +38,16 @@ export type PaymentRequestModalProps = {
 
 type UploadedEntry = { id: string; file: File };
 
+/** Bill attachments allow PDF/JPEG/PNG (Minty rule) plus spreadsheets. */
+const BILL_ATTACHMENT_EXTENSIONS = [...ATTACHMENT_EXTENSIONS, "xls", "xlsx", "xlsm"];
+const BILL_ATTACHMENT_MIME_TYPES = [
+  ...ATTACHMENT_MIME_TYPES,
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+const BILL_ATTACHMENT_ACCEPT =
+  ".pdf,.jpg,.jpeg,.png,.html,.htm,.xls,.xlsx,.xlsm,application/pdf,image/jpeg,image/png,text/html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 /** Material Symbols icon + color for uploaded file row (Google Material Icons naming). */
 function getUploadedFileIconInfo(filename: string): { icon: string; iconClass: string } {
   const ext = filename.trim().split(".").pop()?.toLowerCase() ?? "";
@@ -49,6 +59,9 @@ function getUploadedFileIconInfo(filename: string): { icon: string; iconClass: s
   }
   if (ext === "xls" || ext === "xlsx" || ext === "xlsm") {
     return { icon: "table_chart", iconClass: "text-emerald-700" };
+  }
+  if (ext === "html" || ext === "htm") {
+    return { icon: "html", iconClass: "text-orange-600" };
   }
   return { icon: "draft", iconClass: "text-primary" };
 }
@@ -62,12 +75,78 @@ type ValidatedField =
   | "dueDate"
   | "attachments";
 
-function parseAmountValue(raw: string): number | null {
-  const t = raw.trim().replace(/,/g, "");
-  if (!t) return null;
-  const n = parseFloat(t);
-  return Number.isFinite(n) ? n : null;
+/**
+ * Max digits allowed before the decimal point on the amount field.
+ * Decimals are capped separately at 2.
+ */
+const MAX_AMOUNT_INT_DIGITS = 12;
+
+/** Strip grouping commas so only digits and at most one dot remain. */
+function cleanAmountString(raw: string): string {
+  return raw.trim().replace(/,/g, "");
 }
+
+/** Number of digits before the decimal point in a comma-free amount string. */
+function amountIntegerDigits(cleaned: string): number {
+  return (cleaned.split(".")[0] ?? "").length;
+}
+
+/**
+ * Live validation error for the amount field, or null when it's acceptable.
+ * Tied to the current value so the message clears itself as soon as the amount
+ * is valid again (12 or fewer digits before the decimal point).
+ */
+function amountLimitError(raw: string): string | null {
+  if (amountIntegerDigits(cleanAmountString(raw)) > MAX_AMOUNT_INT_DIGITS) {
+    return `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
+  }
+  return null;
+}
+
+/** True when the field is empty (no digits entered). */
+function isBlankAmount(raw: string): boolean {
+  return cleanAmountString(raw) === "";
+}
+
+/** True when the amount has at least one non-zero digit (i.e. > 0). */
+function isPositiveAmount(raw: string): boolean {
+  const cleaned = cleanAmountString(raw);
+  if (!cleaned || cleaned === ".") return false;
+  return /[1-9]/.test(cleaned);
+}
+
+/**
+ * Normalize a typed amount to an exact decimal string with 2 decimal places,
+ * e.g. "12,312,312.5" -> "12312312.50". Pure string work — never parseFloat —
+ * so arbitrarily large values keep every digit. Returns undefined when blank.
+ */
+function toAmountString(raw: string): string | undefined {
+  const cleaned = cleanAmountString(raw);
+  if (!cleaned || cleaned === ".") return undefined;
+  const [intRaw = "", decRaw = ""] = cleaned.split(".");
+  let intPart = intRaw.replace(/^0+(?=\d)/, "");
+  if (intPart === "") intPart = "0";
+  const dec = (decRaw + "00").slice(0, 2);
+  return `${intPart}.${dec}`;
+}
+
+/**
+ * Format for display as xxx,xxx,xxx.xx by string grouping only (no parseFloat),
+ * so the number shown is exactly the number typed regardless of size.
+ */
+function formatCurrency(value: string): string {
+  const normalized = toAmountString(value);
+  if (normalized === undefined) return "";
+  const [intPart, dec] = normalized.split(".");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${grouped}.${dec}`;
+}
+
+function formatComma(value: string): string {
+  // Same as formatCurrency for this use case
+  return formatCurrency(value);
+}
+
 
 function validatePaymentRequestForm(values: {
   amount: string;
@@ -78,10 +157,11 @@ function validatePaymentRequestForm(values: {
   attachmentCount: number;
 }): Partial<Record<ValidatedField, string>> {
   const e: Partial<Record<ValidatedField, string>> = {};
-  const n = parseAmountValue(values.amount);
-  if (n === null) {
+  if (isBlankAmount(values.amount)) {
     e.amount = "Amount is required.";
-  } else if (n <= 0) {
+  } else if (amountIntegerDigits(cleanAmountString(values.amount)) > MAX_AMOUNT_INT_DIGITS) {
+    e.amount = `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
+  } else if (!isPositiveAmount(values.amount)) {
     e.amount = "Enter an amount greater than zero.";
   }
   if (!values.contact.trim()) {
@@ -301,10 +381,23 @@ export function PaymentRequestModal({
       e.target.value = "";
       return;
     }
+    const disallowed = Array.from(list).filter(
+      (file) => !isAllowedFileType(file, BILL_ATTACHMENT_EXTENSIONS, BILL_ATTACHMENT_MIME_TYPES),
+    );
+    if (disallowed.length > 0) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        attachments: `File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML, Excel): ${disallowed.map((f) => f.name).join(", ")}`,
+      }));
+      e.target.value = "";
+      return;
+    }
+    // Images are converted/compressed to JPEG at upload time (compressImage); stage the raw file here.
     const added: UploadedEntry[] = Array.from(list).map((file) => ({
       id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
       file,
     }));
+
     setUploadedFiles((prev) => [...prev, ...added]);
     setPreviewFileId(added[added.length - 1]?.id ?? null);
     clearFieldError("attachments");
@@ -345,7 +438,7 @@ export function PaymentRequestModal({
     setFormError(null);
     setDraftSubmitting(true);
     try {
-      const parsedAmount = parseAmountValue(amount);
+      const amountStr = toAmountString(amount);
       const acctCode = accountCode.split(" - ")[0]?.trim() ?? "";
 
       const selectedContact = contactsMap.get(contact);
@@ -354,19 +447,19 @@ export function PaymentRequestModal({
         contact: contactName || undefined,
         xero_contact_id: selectedContact?.xero_contact_id || undefined,
         description: description || undefined,
-        amount: parsedAmount ?? undefined,
+        amount: amountStr,
         currency_code: modalCurrencyToIsoCode(currency) || undefined,
         invoice_date: invoiceDate || undefined,
         due_date: dueDate || undefined,
         reference: billNo || undefined,
         xero_account_code: acctCode || undefined,
-        line_items: acctCode || description || (parsedAmount && parsedAmount > 0)
+        line_items: acctCode || description || isPositiveAmount(amount)
           ? [
               {
                 description: description || undefined,
                 quantity: 1,
-                unit_amount: parsedAmount ?? undefined,
-                line_amount: parsedAmount ?? undefined,
+                unit_amount: amountStr,
+                line_amount: amountStr,
                 account_code: acctCode || undefined,
               },
             ]
@@ -431,7 +524,7 @@ export function PaymentRequestModal({
     if (confirmSubmitting) return;
     setConfirmSubmitting(true);
     try {
-      const parsedAmount = parseAmountValue(amount) ?? 0;
+      const amountStr = toAmountString(amount) ?? "0";
       const acctCode = accountCode.split(" - ")[0]?.trim() ?? "";
 
       const selectedContact = contactsMap.get(contact);
@@ -440,7 +533,7 @@ export function PaymentRequestModal({
         contact: contactName,
         xero_contact_id: selectedContact?.xero_contact_id || undefined,
         description,
-        amount: parsedAmount,
+        amount: amountStr,
         currency_code: modalCurrencyToIsoCode(currency),
         invoice_date: invoiceDate || null,
         due_date: dueDate || null,
@@ -450,8 +543,8 @@ export function PaymentRequestModal({
           {
             description,
             quantity: 1,
-            unit_amount: parsedAmount,
-            line_amount: parsedAmount,
+            unit_amount: amountStr,
+            line_amount: amountStr,
             account_code: acctCode,
           },
         ],
@@ -547,13 +640,13 @@ export function PaymentRequestModal({
           </ul>
 
           <div className="relative">
-            <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.xls,.xlsx,.xlsm,application/pdf,image/*,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFilesSelected} aria-label="Choose files to upload" />
+            <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={BILL_ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose files to upload" />
             <div className="pointer-events-none">
               <div className="flex min-h-[156px] flex-col items-center justify-center gap-3 overflow-visible rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 sm:min-h-[176px] sm:gap-4 sm:py-6">
                 <span className="material-symbols-outlined inline-block origin-center text-[48px] leading-none text-gray-400 [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_48] scale-[1.78] sm:text-[48px] sm:scale-[2.02]" aria-hidden>cloud_upload</span>
                 <div className="flex flex-col items-center">
                   <p className="px-2 text-center text-[14px] font-medium leading-tight text-gray-700">Click or drag files here to upload</p>
-                  <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG (Max 10MB)</p>
+                  <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG, HTML (Max 10MB)</p>
                 </div>
               </div>
             </div>
@@ -690,9 +783,57 @@ export function PaymentRequestModal({
                   inputMode="decimal"
                   value={amount ?? ""}
                   onChange={(e) => {
-                    setAmount(e.target.value);
-                    clearFieldError("amount");
+                    let value = e.target.value;
+                    
+                    // Remove commas for validation
+                    const cleanValue = value.replace(/,/g, "");
+                    
+                    // Allow only digits and one decimal point
+                    if (!/^\d*\.?\d*$/.test(cleanValue)) {
+                      return; // Reject invalid characters
+                    }
+
+                    // If there's a decimal point, check decimal places
+                    if (cleanValue.includes(".")) {
+                      const parts = cleanValue.split(".");
+                      // Only keep up to 2 decimal places
+                      if (parts[1] && parts[1].length > 2) {
+                        value = parts[0] + "." + parts[1].substring(0, 2);
+                      } else {
+                        value = cleanValue;
+                      }
+                    } else {
+                      value = cleanValue;
+                    }
+                    
+                    setAmount(value);
+
+                    // Show the 12-digit limit error only while it applies; clear
+                    // it the moment the amount is valid again so it doesn't stick.
+                    const err = amountLimitError(value);
+                    if (err) {
+                      setFieldErrors((prev) => ({ ...prev, amount: err }));
+                    } else {
+                      clearFieldError("amount");
+                    }
                   }}
+
+
+
+                  onBlur={(e) => {
+                    const formatted = formatCurrency(e.target.value);
+                    setAmount(formatted);
+
+                    // Keep the error in sync with the formatted value.
+                    const err = amountLimitError(formatted);
+                    if (err) {
+                      setFieldErrors((prev) => ({ ...prev, amount: err }));
+                    } else {
+                      clearFieldError("amount");
+                    }
+                  }}
+
+
                   placeholder="0.00"
                   aria-invalid={!!fieldErrors.amount}
                   className={
@@ -817,20 +958,38 @@ function PaymentRequestInlinePreview({
           </p>
         </div>
       </div>
-      <FullFilePreviewLink
-        href={objectUrl}
-        className="mt-3 min-h-[min(60dvh,420px)] overflow-auto rounded-lg bg-black/5 p-2 sm:p-3"
-      >
-        {isImageFile(file) ? (
-          <img src={objectUrl} alt={`Preview: ${file.name}`} className="mx-auto max-h-[min(65dvh,620px)] w-auto max-w-full object-contain" />
-        ) : null}
-        {isPdfFile(file) && !isImageFile(file) ? (
-          <PdfJsCanvasPreview src={objectUrl} title={file.name} className="w-full" maxPageWidthCssPx={640} />
-        ) : null}
-        {!isImageFile(file) && !isPdfFile(file) ? (
-          <p className="py-8 text-center text-sm text-primary/70">Preview is not available for this file type.</p>
-        ) : null}
-      </FullFilePreviewLink>
+      {isHtmlFile(file) && !isImageFile(file) && !isPdfFile(file) ? (
+        <div className="mt-3 min-h-[min(60dvh,420px)] rounded-lg bg-black/5 p-2 sm:p-3">
+          <iframe
+            src={objectUrl}
+            title={`Preview: ${file.name}`}
+            sandbox=""
+            referrerPolicy="no-referrer"
+            className="h-[min(60dvh,420px)] w-full rounded-lg border border-gray-200 bg-white"
+          />
+          <FullFilePreviewLink href={objectUrl} className="mt-3 block text-center">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-secondary underline">
+              <span className="material-symbols-outlined text-[24px] leading-none" aria-hidden>open_in_new</span>
+              Open full file in new tab
+            </span>
+          </FullFilePreviewLink>
+        </div>
+      ) : (
+        <FullFilePreviewLink
+          href={objectUrl}
+          className="mt-3 min-h-[min(60dvh,420px)] overflow-auto rounded-lg bg-black/5 p-2 sm:p-3"
+        >
+          {isImageFile(file) ? (
+            <img src={objectUrl} alt={`Preview: ${file.name}`} className="mx-auto max-h-[min(65dvh,620px)] w-auto max-w-full object-contain" />
+          ) : null}
+          {isPdfFile(file) && !isImageFile(file) ? (
+            <PdfJsCanvasPreview src={objectUrl} title={file.name} className="w-full" maxPageWidthCssPx={640} />
+          ) : null}
+          {!isImageFile(file) && !isPdfFile(file) ? (
+            <p className="py-8 text-center text-sm text-primary/70">Preview is not available for this file type.</p>
+          ) : null}
+        </FullFilePreviewLink>
+      )}
     </div>
   );
 }

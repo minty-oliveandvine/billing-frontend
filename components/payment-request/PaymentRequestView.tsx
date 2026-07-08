@@ -219,7 +219,16 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     return () => window.clearTimeout(id);
   }, [searchQuery]);
 
+  /**
+   * Monotonic token so only the most recent loadBills may commit state. An
+   * older, slower call (its enrichment loop awaits per-bill network requests)
+   * must not overwrite a fresher list — that race made voided rows flicker
+   * out of the Voided filter when calls overlapped.
+   */
+  const loadSeqRef = useRef(0);
+
   const loadBills = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -238,6 +247,9 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         ...(startDate ? { date_from: startDate } : {}),
         ...(endDate ? { date_to: endDate } : {}),
       });
+      // A newer loadBills started while we were fetching — discard this stale
+      // response so it can't overwrite the fresher list.
+      if (seq !== loadSeqRef.current) return;
       setRawBills(data);
       const mapped = data.map(mapBillToRow);
       setBills(mapped);
@@ -264,13 +276,30 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         );
         enriched.push(...chunk);
       }
+      // The enrichment loop above awaits network calls, so a newer load may
+      // have superseded us in the meantime — don't clobber it.
+      if (seq !== loadSeqRef.current) return;
       setBills(enriched);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load bills");
+      if (seq === loadSeqRef.current) {
+        setError(err instanceof Error ? err.message : "Failed to load bills");
+      }
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [debouncedSearch, statusFilters, minAmount, maxAmount, dateType, startDate, endDate]);
+
+  /**
+   * Optimistically drop bills from local state so a void/delete disappears
+   * instantly, without waiting for the void call + full `loadBills` refetch
+   * round trips. `loadBills` still runs afterwards to reconcile with the
+   * server (and would restore a row if the void actually failed).
+   */
+  const removeBillsLocally = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    setRawBills((prev) => prev.filter((b) => !idSet.has(b.id)));
+    setBills((prev) => prev.filter((r) => !idSet.has(r.id)));
+  }, []);
 
   const easyViewPaySource = useMemo(() => {
     if (!easyViewPayBillId) return null;
@@ -403,6 +432,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     setBulkDeletePending(true);
     try {
       await Promise.all(selectedBillIds.map((id) => deleteBill(id)));
+      removeBillsLocally(selectedBillIds);
       await loadBills();
       tableRef.current?.clearSelection();
       setBulkDeleteModalOpen(false);
@@ -411,7 +441,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     } finally {
       setBulkDeletePending(false);
     }
-  }, [selectedBillIds, loadBills]);
+  }, [selectedBillIds, loadBills, removeBillsLocally]);
 
   const runBulkPublishSelected = useCallback(async () => {
     if (selectedBillIds.length < 2) return;
@@ -553,9 +583,11 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                 onRowDelete={async (rowId) => {
                   try {
                     await deleteBill(rowId);
+                    removeBillsLocally([rowId]);
                     await loadBills();
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Failed to delete bill");
+                    await loadBills();
                     throw err;
                   }
                 }}
@@ -631,6 +663,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
             } else {
               await deleteBill(easyViewDraftBillId);
             }
+            removeBillsLocally([easyViewDraftBillId]);
             setEasyViewDraftDeleteOpen(false);
             setEasyViewDraftBillId(null);
             await loadBills();

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState } from "react";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import { PdfJsCanvasPreview } from "@/components/PdfJsCanvasPreview";
-import { formatFileSize, isImageFile, isPdfFile } from "@/lib/fileAttachmentPreview";
+import { formatFileSize, isImageFile, isPdfFile, isHtmlFile, isAllowedAttachment, ATTACHMENT_ACCEPT } from "@/lib/fileAttachmentPreview";
 
 export type UploadInvoiceAttachmentModalProps = {
   open: boolean;
@@ -18,6 +18,7 @@ function getUploadedFileIconInfo(filename: string): { icon: string; iconClass: s
   const ext = filename.trim().split(".").pop()?.toLowerCase() ?? "";
   if (ext === "pdf") return { icon: "picture_as_pdf", iconClass: "text-red-600" };
   if (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "heic" || ext === "heif" || ext === "webp" || ext === "gif") return { icon: "image", iconClass: "text-sky-600" };
+  if (ext === "html" || ext === "htm") return { icon: "html", iconClass: "text-orange-600" };
   return { icon: "draft", iconClass: "text-primary" };
 }
 
@@ -82,6 +83,12 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
     const oversized = Array.from(list).filter((file) => file.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
       setUploadError(`File${oversized.length > 1 ? "s" : ""} exceed the 10MB limit: ${oversized.map((f) => f.name).join(", ")}`);
+      e.target.value = "";
+      return;
+    }
+    const disallowed = Array.from(list).filter((file) => !isAllowedAttachment(file));
+    if (disallowed.length > 0) {
+      setUploadError(`File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML): ${disallowed.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
@@ -175,7 +182,16 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
                     {isPdfFile(previewFile) && !isImageFile(previewFile) ? (
                       <PdfJsCanvasPreview src={previewObjectUrl} title={previewFile.name} className="w-full" maxPageWidthCssPx={480} />
                     ) : null}
-                    {!isImageFile(previewFile) && !isPdfFile(previewFile) ? (
+                    {isHtmlFile(previewFile) && !isImageFile(previewFile) && !isPdfFile(previewFile) ? (
+                      <iframe
+                        src={previewObjectUrl}
+                        title={`Preview: ${previewFile.name}`}
+                        sandbox=""
+                        referrerPolicy="no-referrer"
+                        className="h-[min(45dvh,320px)] w-full rounded-lg border border-gray-200 bg-white"
+                      />
+                    ) : null}
+                    {!isImageFile(previewFile) && !isPdfFile(previewFile) && !isHtmlFile(previewFile) ? (
                       <p className="py-8 text-center text-sm text-primary/70">Preview is not available for this file type.</p>
                     ) : null}
                   </div>
@@ -223,7 +239,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
             </div>
 
             <div className="relative min-w-0">
-              <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,application/pdf,image/*" onChange={handleFilesSelected} aria-label="Choose attachment files to upload" />
+              <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose attachment files to upload" />
               <div className="pointer-events-none">
                 <div className="flex min-h-[156px] flex-col items-center justify-center gap-3 overflow-visible rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 sm:min-h-[176px] sm:gap-4 sm:py-6">
                   <span className="material-symbols-outlined inline-block origin-center text-[48px] leading-none text-gray-400 [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_48] scale-[1.78] sm:scale-[2.02]" aria-hidden>
@@ -231,7 +247,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
                   </span>
                   <div className="flex flex-col items-center">
                     <p className="px-2 text-center text-[14px] font-medium leading-tight text-gray-700">Click or drag files here to upload</p>
-                    <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG (Max 10MB)</p>
+                    <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG, HTML (Max 10MB)</p>
                   </div>
                 </div>
               </div>

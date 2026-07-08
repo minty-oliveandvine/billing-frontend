@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "material-symbols/outlined.css";
 @import "./styles/checkbox/checkbox-secondary-white-tick.css";
 
 :root {

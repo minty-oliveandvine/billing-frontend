@@ -1,14 +1,54 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { getAuth, isTokenExpired, isTokenExpiringSoon, redirectToLogin, refreshToken } from "@/lib/auth";
+
+// pdf.js runtime assets (worker, cMaps, standard fonts) are self-hosted under
+// /public/pdfjs — copied out of node_modules by scripts/copy-pdfjs-assets.mjs
+// so previews are served same-origin and never depend on a third-party CDN
+// being reachable. Paths are version-agnostic because the copy step always
+// mirrors the installed pdfjs-dist version.
+const PDFJS_ASSET_BASE = "/pdfjs";
 
 let workerSrcConfigured = false;
 
 function configureWorker(pdfjs: typeof import("pdfjs-dist")) {
   if (workerSrcConfigured) return;
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_ASSET_BASE}/pdf.worker.min.mjs`;
   workerSrcConfigured = true;
+}
+
+/**
+ * cMap + standard-font resources pdf.js needs to render PDFs that use
+ * CID-keyed fonts (e.g. Chinese/Japanese invoices) or that rely on the 14
+ * standard fonts without embedding them. Without these, `getDocument` throws
+ * ("Ensure that the cMapUrl and cMapPacked API parameters are provided") for
+ * such files, so they silently fall through to the error state.
+ */
+const FONT_OPTIONS = {
+  cMapUrl: `${PDFJS_ASSET_BASE}/cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${PDFJS_ASSET_BASE}/standard_fonts/`,
+} as const;
+
+/**
+ * Turns a pdf.js load/render error into a short, user-facing reason so the
+ * rarer "can't preview" cases (damaged file, encrypted, network) each show a
+ * clear message instead of one generic line. pdf.js tags its errors via `name`.
+ */
+function describePdfError(err: unknown): string {
+  const name = typeof err === "object" && err && "name" in err ? String((err as { name: unknown }).name) : "";
+  switch (name) {
+    case "InvalidPDFException":
+      return "This file looks damaged or isn't a valid PDF, so it can't be previewed.";
+    case "PasswordException":
+      return "This PDF is encrypted and couldn't be unlocked for preview.";
+    case "MissingPDFException":
+    case "UnexpectedResponseException":
+      return "The PDF couldn't be loaded. Please check your connection and try again.";
+    default:
+      return "This PDF can't be previewed here.";
+  }
 }
 
 const DEFAULT_MAX_PAGES = 50;
@@ -146,12 +186,20 @@ function PdfJsProxyFetcher({
 }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [loadedPath, setLoadedPath] = useState(apiPath);
+
+  // Reset the preview state during render (not in the effect) when the source
+  // path changes, so the spinner shows immediately instead of briefly keeping
+  // the previous PDF. This is React's "adjust state on prop change" pattern.
+  if (loadedPath !== apiPath) {
+    setLoadedPath(apiPath);
+    setBlobUrl(null);
+    setFetchError(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
     let createdUrl: string | null = null;
-    setBlobUrl(null);
-    setFetchError(false);
 
     void (async () => {
       const url = await fetchProxyBlob(apiPath);
@@ -179,7 +227,10 @@ function PdfJsProxyFetcher({
   if (fetchError) {
     return (
       <div className={`${className} flex flex-col items-center gap-2 py-8 text-center text-sm text-primary/70`}>
-        <p>Could not display this PDF in preview.</p>
+        <span className="material-symbols-outlined text-[28px] text-primary/40" aria-hidden>
+          description
+        </span>
+        <p>The PDF couldn&apos;t be loaded. Please check your connection and try again.</p>
       </div>
     );
   }
@@ -216,7 +267,13 @@ function PdfJsCanvasRenderer({
   maxPages,
 }: Required<Omit<PdfJsCanvasPreviewProps, "previewApiPath">>) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
+  const [status, setStatus] = useState<"loading" | "error" | "ready" | "password">("loading");
+  const [passwordError, setPasswordError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("This PDF can't be previewed here.");
+  // Holds pdf.js's callback that resumes document loading once the user submits
+  // a password. Set when the PDF is encrypted; cleared between loads.
+  const submitPasswordRef = useRef<((password: string) => void) | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,12 +283,22 @@ function PdfJsCanvasRenderer({
 
     host.replaceChildren();
     setStatus("loading");
+    setPasswordError(false);
+    submitPasswordRef.current = null;
 
     void (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
         configureWorker(pdfjs);
-        const loadingTask = pdfjs.getDocument({ url: src, withCredentials: false });
+        const loadingTask = pdfjs.getDocument({ url: src, withCredentials: false, ...FONT_OPTIONS });
+        // Encrypted PDFs: pdf.js invokes onPassword instead of rejecting. Show a
+        // password prompt and hand the entered value back via updatePassword.
+        loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
+          if (cancelled) return;
+          submitPasswordRef.current = updatePassword;
+          setPasswordError(reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD);
+          setStatus("password");
+        };
         pdfDoc = await loadingTask.promise;
         const pageLimit = Math.min(pdfDoc.numPages, Math.max(1, maxPages));
         const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio ?? 1 : 1, 2);
@@ -269,8 +336,11 @@ function PdfJsCanvasRenderer({
         }
 
         if (!cancelled) setStatus("ready");
-      } catch {
-        if (!cancelled) setStatus("error");
+      } catch (err) {
+        if (!cancelled) {
+          setErrorMessage(describePdfError(err));
+          setStatus("error");
+        }
       } finally {
         if (pdfDoc) {
           await pdfDoc.destroy().catch(() => {});
@@ -284,6 +354,18 @@ function PdfJsCanvasRenderer({
     };
   }, [src, title, maxPageWidthCssPx, maxPages]);
 
+  const submitPassword = (value: string) => {
+    const submit = submitPasswordRef.current;
+    if (!submit || !value) return;
+    setStatus("loading");
+    submit(value);
+  };
+
+  const handlePasswordSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submitPassword(passwordInputRef.current?.value ?? "");
+  };
+
   return (
     <div className={className}>
       {status === "loading" ? (
@@ -296,10 +378,60 @@ function PdfJsCanvasRenderer({
           </span>
         </div>
       ) : null}
+      {status === "password" ? (
+        <form
+          onSubmit={handlePasswordSubmit}
+          onClick={(e) => {
+            // The preview may be wrapped in an "open full file" link. Cancel that
+            // link's navigation for any click inside this prompt (preventDefault
+            // does not affect input focus or our own handlers), and stop the
+            // click from bubbling to it.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          className="mx-auto flex w-full max-w-sm flex-col items-center gap-3 py-8 text-center text-sm text-primary/80"
+        >
+          <span className="material-symbols-outlined text-[28px] text-secondary" aria-hidden>
+            lock
+          </span>
+          <p className="font-medium text-black">This PDF is password-protected</p>
+          <p className="text-primary/60">Enter the password to preview it.</p>
+          <input
+            ref={passwordInputRef}
+            type="password"
+            name="pdf-password"
+            autoFocus
+            aria-label="PDF password"
+            aria-invalid={passwordError}
+            className={`w-full rounded-lg border px-3 py-2 text-sm text-black outline-none focus-visible:ring-2 focus-visible:ring-secondary ${
+              passwordError ? "border-red-400" : "border-gray-300"
+            }`}
+          />
+          {passwordError ? (
+            <p role="alert" className="text-xs font-medium text-red-500">
+              Incorrect password. Please try again.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              submitPassword(passwordInputRef.current?.value ?? "");
+            }}
+            className="w-full rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+          >
+            Unlock preview
+          </button>
+        </form>
+      ) : null}
       {status === "error" ? (
         <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-primary/70">
-          <p>Could not display this PDF in preview.</p>
-          <a href={src} target="_blank" rel="noopener noreferrer" className="font-semibold text-secondary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+          <span className="material-symbols-outlined text-[28px] text-primary/40" aria-hidden>
+            description
+          </span>
+          <p>{errorMessage}</p>
+          <a href={src} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-secondary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
             Open PDF in new tab
           </a>
         </div>

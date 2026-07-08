@@ -16,7 +16,7 @@ import {
   type PaymentItem,
 } from "@/lib/api";
 import { PdfJsCanvasPreview } from "@/components/PdfJsCanvasPreview";
-import { formatFileSize, FullFilePreviewLink, isImageFile, isPdfFile } from "@/lib/fileAttachmentPreview";
+import { formatFileSize, FullFilePreviewLink, isImageFile, isPdfFile, isHtmlFile, isAllowedAttachment, ATTACHMENT_ACCEPT } from "@/lib/fileAttachmentPreview";
 import { AttachmentDeleteConfirmModal } from "./AttachmentDeleteConfirmModal";
 
 export type BankSlipFileRef = { id: string; name: string };
@@ -113,6 +113,7 @@ function fileIconForName(filename: string): { icon: string; iconClass: string } 
   const ext = filename.trim().split(".").pop()?.toLowerCase() ?? "";
   if (ext === "pdf") return { icon: "picture_as_pdf", iconClass: "text-red-600" };
   if (ext === "jpg" || ext === "jpeg" || ext === "png") return { icon: "image", iconClass: "text-sky-600" };
+  if (ext === "html" || ext === "htm") return { icon: "html", iconClass: "text-orange-600" };
   return { icon: "draft", iconClass: "text-primary" };
 }
 
@@ -123,6 +124,11 @@ function isPdfName(name: string): boolean {
 function isImageName(name: string): boolean {
   const ext = name.trim().split(".").pop()?.toLowerCase() ?? "";
   return ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "gif" || ext === "webp";
+}
+
+function isHtmlName(name: string): boolean {
+  const ext = name.trim().split(".").pop()?.toLowerCase() ?? "";
+  return ext === "html" || ext === "htm";
 }
 
 function PreviewContent({
@@ -170,6 +176,22 @@ function BlobOrUrlPreviewContent({ fileName, url }: { fileName: string; url: str
       <FullFilePreviewLink href={url} className="w-full rounded-lg">
         <PdfJsCanvasPreview src={url} title={fileName} className="w-full" maxPageWidthCssPx={560} />
       </FullFilePreviewLink>
+    );
+  }
+  if (isHtmlName(fileName)) {
+    return (
+      <div className="w-full">
+        <iframe
+          src={url}
+          title={`Preview: ${fileName}`}
+          sandbox=""
+          referrerPolicy="no-referrer"
+          className="h-[min(55dvh,480px)] w-full rounded-lg border border-gray-200 bg-white"
+        />
+        <FullFilePreviewLink href={url} className={`mt-3 block rounded-lg text-center ${focusRing}`}>
+          <span className="text-sm font-semibold text-secondary underline">Open full file in new tab</span>
+        </FullFilePreviewLink>
+      </div>
     );
   }
   return (
@@ -286,7 +308,8 @@ function FetchedPreviewContent({
   const { url, mime } = state;
   const previewApiPath = "previewApiPath" in state ? state.previewApiPath : undefined;
   const showImage = mime.startsWith("image/") || isImageName(fileName);
-  const showPdf = mime === "application/pdf" || mime === "application/octet-stream" || isPdfName(fileName);
+  const showHtml = (mime === "text/html" || isHtmlName(fileName)) && !showImage;
+  const showPdf = !showHtml && (mime === "application/pdf" || mime === "application/octet-stream" || isPdfName(fileName));
 
   if (showImage) {
     return (
@@ -310,6 +333,27 @@ function FetchedPreviewContent({
           maxPageWidthCssPx={560}
         />
       </FullFilePreviewLink>
+    );
+  }
+  if (showHtml) {
+    return (
+      <div className="w-full">
+        <iframe
+          src={url}
+          title={`Preview: ${fileName}`}
+          sandbox=""
+          referrerPolicy="no-referrer"
+          className="h-[min(55dvh,480px)] w-full rounded-lg border border-gray-200 bg-white"
+        />
+        <FullFilePreviewLink href={url} className={`mt-3 block rounded-lg text-center ${focusRing}`}>
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-secondary underline">
+            <span className="material-symbols-outlined text-[24px] leading-none" aria-hidden>
+              open_in_new
+            </span>
+            Open full file in new tab
+          </span>
+        </FullFilePreviewLink>
+      </div>
     );
   }
   return (
@@ -417,24 +461,39 @@ function StagedBankSlipInlinePreview({
           </p>
         </div>
       </div>
-      <FullFilePreviewLink
-        href={objectUrl}
-        className="mt-3 min-h-[min(50dvh,320px)] overflow-auto rounded-lg bg-black/5 p-2 sm:min-h-[240px] sm:p-3"
-      >
-        {isImageFile(file) ? (
-          <img
+      {isHtmlFile(file) && !isImageFile(file) && !isPdfFile(file) ? (
+        <div className="mt-3 min-h-[min(50dvh,320px)] rounded-lg bg-black/5 p-2 sm:min-h-[240px] sm:p-3">
+          <iframe
             src={objectUrl}
-            alt={`Preview: ${file.name}`}
-            className="mx-auto max-h-[min(55dvh,480px)] w-auto max-w-full object-contain"
+            title={`Preview: ${file.name}`}
+            sandbox=""
+            referrerPolicy="no-referrer"
+            className="h-[min(50dvh,320px)] w-full rounded-lg border border-gray-200 bg-white sm:min-h-[240px]"
           />
-        ) : null}
-        {isPdfFile(file) && !isImageFile(file) ? (
-          <PdfJsCanvasPreview src={objectUrl} title={file.name} className="w-full" maxPageWidthCssPx={560} />
-        ) : null}
-        {!isImageFile(file) && !isPdfFile(file) ? (
-          <p className="py-8 text-center text-sm text-primary/70">Preview is not available for this file type.</p>
-        ) : null}
-      </FullFilePreviewLink>
+          <FullFilePreviewLink href={objectUrl} className="mt-3 block text-center">
+            <span className="text-sm font-semibold text-secondary underline">Open full file in new tab</span>
+          </FullFilePreviewLink>
+        </div>
+      ) : (
+        <FullFilePreviewLink
+          href={objectUrl}
+          className="mt-3 min-h-[min(50dvh,320px)] overflow-auto rounded-lg bg-black/5 p-2 sm:min-h-[240px] sm:p-3"
+        >
+          {isImageFile(file) ? (
+            <img
+              src={objectUrl}
+              alt={`Preview: ${file.name}`}
+              className="mx-auto max-h-[min(55dvh,480px)] w-auto max-w-full object-contain"
+            />
+          ) : null}
+          {isPdfFile(file) && !isImageFile(file) ? (
+            <PdfJsCanvasPreview src={objectUrl} title={file.name} className="w-full" maxPageWidthCssPx={560} />
+          ) : null}
+          {!isImageFile(file) && !isPdfFile(file) ? (
+            <p className="py-8 text-center text-sm text-primary/70">Preview is not available for this file type.</p>
+          ) : null}
+        </FullFilePreviewLink>
+      )}
     </div>
   );
 }
@@ -559,6 +618,12 @@ export function BankSlipDetailsModal({
     const oversized = Array.from(list).filter((file) => file.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
       setUploadError(`File${oversized.length > 1 ? "s" : ""} exceed the 10MB limit: ${oversized.map((f) => f.name).join(", ")}`);
+      e.target.value = "";
+      return;
+    }
+    const disallowed = Array.from(list).filter((file) => !isAllowedAttachment(file));
+    if (disallowed.length > 0) {
+      setUploadError(`File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML): ${disallowed.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
@@ -862,7 +927,7 @@ export function BankSlipDetailsModal({
                   type="file"
                   className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]"
                   multiple
-                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                  accept={ATTACHMENT_ACCEPT}
                   onChange={handleStagedFilesSelected}
                   disabled={uploading}
                   aria-label="Choose bank slip files to upload"
@@ -872,7 +937,7 @@ export function BankSlipDetailsModal({
                     <span className="material-symbols-outlined inline-block origin-center text-[48px] leading-none text-gray-400 [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_48] scale-[1.78] sm:text-[48px] sm:scale-[2.02]" aria-hidden>cloud_upload</span>
                     <div className="flex flex-col items-center">
                       <p className="px-2 text-center text-[14px] font-medium leading-tight text-gray-700">Click to upload or drag and drop</p>
-                      <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG (Max 10MB)</p>
+                      <p className="mt-1 px-2 text-center text-[12px] leading-tight text-gray-400">PDF, JPEG, PNG, HTML (Max 10MB)</p>
                     </div>
                   </div>
                 </div>

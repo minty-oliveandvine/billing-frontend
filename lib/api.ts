@@ -6,12 +6,13 @@ import {
   redirectToLogin,
   refreshToken,
 } from "./auth";
+import { compressImage } from "./compressImage";
 import { findEmailAddressInJson } from "./extractEmail";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
 
-// ── Error ────────────────────────────────────────────────────────────
+//  ── Error ────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
   constructor(
@@ -376,7 +377,9 @@ export type BillCreatePayload = {
   contact?: string;
   xero_contact_id?: string;
   description?: string;
-  amount?: number;
+  // Sent as an exact decimal string (e.g. "123456789012.00") to preserve
+  // precision end-to-end; number still accepted for the older edit path.
+  amount?: string | number;
   due_date?: string | null;
   invoice_date?: string | null;
   reference?: string;
@@ -385,8 +388,8 @@ export type BillCreatePayload = {
   line_items?: {
     description?: string;
     quantity?: number;
-    unit_amount?: number;
-    line_amount?: number;
+    unit_amount?: string | number;
+    line_amount?: string | number;
     account_code?: string;
     account_name?: string;
   }[];
@@ -603,15 +606,24 @@ export function publishBill(billId: string): Promise<BillDetail> {
 
 // ── Attachments ──────────────────────────────────────────────────────
 
-export function uploadBillAttachments(billId: string, files: File[]): Promise<BillAttachment[]> {
+export async function uploadBillAttachments(
+  billId: string,
+  files: File[],
+): Promise<BillAttachment[]> {
   const form = new FormData();
+
   for (const file of files) {
-    form.append("files", file);
+    const optimized = await compressImage(file);
+    form.append("files", optimized);
   }
-  return apiFetch<BillAttachment[]>(`/bills/${billId}/attachments`, {
-    method: "POST",
-    body: form,
-  });
+
+  return apiFetch<BillAttachment[]>(
+    `/bills/${billId}/attachments`,
+    {
+      method: "POST",
+      body: form,
+    }
+  );
 }
 
 export function deleteBillAttachment(billId: string, attachmentId: string): Promise<void> {
@@ -711,19 +723,26 @@ export function deletePaymentAttachment(
 }
 
 /** Upload a file for a payment (e.g. bank slip). Multipart field `file`; `attachment_role` query defaults to bank_slip. */
-export function uploadPaymentAttachment(
+export async function uploadPaymentAttachment(
   billId: string,
   paymentId: string,
   file: File,
   attachmentRole: string = "bank_slip",
 ): Promise<PaymentAttachment> {
+  const optimized = await compressImage(file);
+
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", optimized);
+
   const qs = new URLSearchParams();
   qs.set("attachment_role", attachmentRole);
+
   return apiFetch<PaymentAttachment>(
     `/bills/${billId}/payments/${paymentId}/attachments?${qs.toString()}`,
-    { method: "POST", body: form },
+    {
+      method: "POST",
+      body: form,
+    },
   );
 }
 

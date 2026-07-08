@@ -83,6 +83,21 @@ function PreviewBlock({
       />
     );
   }
+  if (mimeLower === "text/html" || /\.html?$/.test((name || "").trim().toLowerCase())) {
+    return (
+      <iframe
+        src={url}
+        title={name || "HTML preview"}
+        sandbox=""
+        referrerPolicy="no-referrer"
+        className={
+          layout === "fullscreen"
+            ? "block h-[calc(100dvh-7rem)] w-full bg-white"
+            : "block h-[min(75vh,56rem)] w-full bg-white"
+        }
+      />
+    );
+  }
   return (
     <div className="flex flex-col items-center justify-center gap-2 bg-gray-50 px-4 py-8 text-center">
       <span className="material-symbols-outlined text-[40px] text-primary/35" aria-hidden>

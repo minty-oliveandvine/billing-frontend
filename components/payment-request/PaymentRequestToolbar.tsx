@@ -155,8 +155,19 @@ export function PaymentRequestToolbar({
       }
     };
     const onResizeOrScroll = () => {
-      setFilterOpen(false);
-      setFilterMenu(null);
+      // Reposition the menu to stay anchored to its button rather than closing.
+      // Closing here broke interacting with fields inside the panel: focusing the
+      // amount input (or switching between fields) scrolls it into view / opens the
+      // mobile keyboard, both of which fire scroll/resize and dismissed the filter.
+      // This matches how ThemedSelect / BillContactPicker handle scroll & resize.
+      const trigger = filterButtonRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewportPadding = 8;
+      const maxWidth = Math.min(416, window.innerWidth - viewportPadding * 2);
+      const left = Math.max(viewportPadding, Math.min(rect.right - maxWidth, window.innerWidth - maxWidth - viewportPadding));
+      const top = rect.bottom + 8;
+      setFilterMenu({ top, left, width: maxWidth });
     };
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
@@ -388,7 +399,7 @@ export function PaymentRequestToolbar({
                   <h3 className="text-sm font-semibold text-primary">Filters</h3>
                   <p className="mt-1 text-xs leading-snug text-primary/65">Adjust criteria, then apply to update the list. Closing without applying keeps the current filters.</p>
                 </div>
-                <div className="px-3 py-4 sm:px-4">
+                <div className="px-3 py-4 sm:px-4" onMouseDown={(e) => e.stopPropagation()}>
                   <div className="flex flex-col gap-5">
                     <div>
                       <label htmlFor={`${filterFieldIds}-min-amount`} className={fieldLabelClass}>
@@ -459,7 +470,7 @@ export function PaymentRequestToolbar({
                     </div>
                   </div>
                 </div>
-                <div className="border-t border-gray-200 px-3 py-2 sm:px-4">
+                <div className="border-t border-gray-200 px-3 py-2 sm:px-4" onMouseDown={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={onResetFilterDraft} className="box-border h-12 min-h-[48px] w-full min-w-0 flex-1 rounded-lg border-2 border-secondary bg-white px-4 text-sm font-semibold text-secondary transition-colors hover:bg-secondary/10 sm:h-11 sm:min-h-[44px]">Reset</button>
                     <button type="button" onClick={onSaveFilterChanges} className="box-border h-12 min-h-[48px] w-full min-w-0 flex-1 rounded-lg border border-transparent bg-secondary px-5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary sm:h-11 sm:min-h-[44px]">Apply</button>
@@ -475,11 +486,11 @@ export function PaymentRequestToolbar({
             {bulkOpen && bulkMenu && bulkActionsEnabled && typeof document !== "undefined"
               ? createPortal(
                   <div data-bulk-menu-panel role="menu" aria-label="Bulk actions" className="fixed z-[400] rounded-lg border border-gray-200 bg-white py-1 shadow-lg" style={{ top: bulkMenu.top, left: bulkMenu.left, minWidth: bulkMenu.minWidth }}>
-                    {!isViewOnly && !(selectionContainsPaid && !canVoidPaid) ? (
-                      <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50" onClick={() => { onBulkDeleteSelected?.(); setBulkOpen(false); setBulkMenu(null); }}>Void</button>
-                    ) : null}
                     {!isViewOnly && canPublish ? (
                       <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { onBulkPublishSelected?.(); setBulkOpen(false); setBulkMenu(null); }}>Publish</button>
+                    ) : null}
+                    {!isViewOnly && !(selectionContainsPaid && !canVoidPaid) ? (
+                      <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50" onClick={() => { onBulkDeleteSelected?.(); setBulkOpen(false); setBulkMenu(null); }}>Void</button>
                     ) : null}
                     {isViewOnly ? (
                       <div className="px-3 py-2 text-sm text-gray-400 select-none">View-only access</div>

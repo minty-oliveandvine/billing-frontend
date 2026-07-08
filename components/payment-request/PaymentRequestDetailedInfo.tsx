@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useId } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { BillContactPicker } from "@/components/BillContactPicker";
 import { DateTextField } from "@/components/DateTextField";
 import { ThemedSelect } from "@/components/ThemedSelect";
@@ -113,6 +113,25 @@ function FieldLabel({
   return <div className={paymentRequestDetailFieldLabelClass}>{children}</div>;
 }
 
+function formatCurrency(value: string): string {
+  const cleaned = value.trim().replace(/,/g, "");
+  const num = parseFloat(cleaned);
+  
+  if (!cleaned || !Number.isFinite(num)) {
+    return "";
+  }
+
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatComma(value: string): string {
+  // Same as formatCurrency for this use case
+  return formatCurrency(value);
+}
+
 export function formatPaymentRequestDetailLongDate(iso: string): string {
   if (!iso) return "—";
   const formatted = formatIsoDateForDisplay(iso);
@@ -159,6 +178,57 @@ export function PaymentRequestReadOnlySelectShell({
   );
 }
 
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/**
+ * Renders an amount on a single line, shrinking the font just enough to fit the
+ * column width (never wraps, never clips). Scales back up as space allows.
+ */
+const FIT_AMOUNT_MAX_PX = 24;
+const FIT_AMOUNT_MIN_PX = 11;
+
+function FitAmountText({ children }: { children: ReactNode }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [fontSize, setFontSize] = useState<number>(FIT_AMOUNT_MAX_PX);
+  const fontSizeRef = useRef<number>(FIT_AMOUNT_MAX_PX);
+
+  useIsomorphicLayoutEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+    // Scale proportionally from the currently-rendered size: text width is
+    // linear in font size, so `current * available / needed` fits in one step
+    // and works both shrinking and growing — no imperative reset needed.
+    const fit = () => {
+      const available = container.clientWidth;
+      const needed = text.scrollWidth;
+      if (available === 0 || needed === 0) return;
+      const current = fontSizeRef.current;
+      const next = Math.max(
+        FIT_AMOUNT_MIN_PX,
+        Math.min(FIT_AMOUNT_MAX_PX, Math.floor((current * available) / needed)),
+      );
+      if (next !== current) {
+        fontSizeRef.current = next;
+        setFontSize(next);
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <span ref={containerRef} className="block min-w-0 flex-1 overflow-hidden">
+      <span ref={textRef} className="inline-block whitespace-nowrap leading-snug" style={{ fontSize }}>
+        {children}
+      </span>
+    </span>
+  );
+}
+
 /** Same layout as amount row in modal: gray #EDEDED currency cell + white amount cell. */
 export function PaymentRequestReadOnlyAmountRow({
   currencyDisplayLabel,
@@ -178,10 +248,10 @@ export function PaymentRequestReadOnlyAmountRow({
         <span className="min-w-0 flex-1 truncate">{currencyDisplayLabel}</span>
       </div>
       <div
-        className={`box-border flex min-h-[52px] min-w-0 w-full items-center rounded-lg bg-transparent px-3 py-1 text-xl font-semibold tabular-nums ${amountColorClass} sm:min-h-14 sm:flex-1 sm:rounded-l-none sm:rounded-r-lg sm:text-2xl sm:leading-snug ${highlightError ? "ring-2 ring-inset ring-red-500" : ""}`}
+        className={`box-border flex min-h-[52px] min-w-0 w-full items-center rounded-lg bg-transparent px-3 py-1 font-semibold tabular-nums ${amountColorClass} sm:min-h-14 sm:flex-1 sm:rounded-l-none sm:rounded-r-lg sm:leading-snug ${highlightError ? "ring-2 ring-inset ring-red-500" : ""}`}
         aria-readonly="true"
       >
-        <span className="min-w-0 flex-1 truncate">{amount || "—"}</span>
+        <FitAmountText>{amount || "—"}</FitAmountText>
       </div>
     </div>
   );
@@ -416,15 +486,47 @@ export function PaymentRequestDetailedInfo({
                     id={idAmount}
                     type="text"
                     inputMode="decimal"
+                    placeholder="0.00"
                     value={amount ?? ""}
-                    onChange={(e) => patch({ amount: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value;
+                      
+                      // Remove commas for validation
+                      const cleanValue = value.replace(/,/g, "");
+                      
+                      // Allow only digits and one decimal point
+                      if (!/^\d*\.?\d*$/.test(cleanValue)) {
+                        return; // Reject invalid characters
+                      }
+                      
+                      // If there's a decimal point, check decimal places
+                      if (cleanValue.includes(".")) {
+                        const parts = cleanValue.split(".");
+                        // Only keep up to 2 decimal places
+                        if (parts[1] && parts[1].length > 2) {
+                          value = parts[0] + "." + parts[1].substring(0, 2);
+                        } else {
+                          value = cleanValue;
+                        }
+                      } else {
+                        value = cleanValue;
+                      }
+                      
+                      patch({ amount: value });
+                    }}
+                    onBlur={(e) => {
+                      const formatted = formatCurrency(e.target.value);
+                      patch({ amount: formatted });
+                    }}
+
                     aria-invalid={!!amountError}
                     aria-describedby={amountError ? idAmountError : undefined}
                     className={
                       amountError
-                        ? `${paymentRequestDetailAmountValueInputClass} border-red-500 focus:border-red-500 focus:ring-red-200/50`
-                        : paymentRequestDetailAmountValueInputClass
+                        ? `${paymentRequestDetailAmountValueInputClass} placeholder:text-gray-400 placeholder:opacity-60 border-red-500 focus:border-red-500 focus:ring-red-200/50`
+                        : `${paymentRequestDetailAmountValueInputClass} placeholder:text-gray-400 placeholder:opacity-60`
                     }
+
                     disabled={disabled}
                   />
                 </div>

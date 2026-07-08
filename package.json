@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
+    "material-symbols": "^0.45.2",
     "next": "16.1.6",
     "pdfjs-dist": "^4.10.38",
     "react": "19.2.3",

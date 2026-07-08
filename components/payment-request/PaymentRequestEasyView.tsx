@@ -26,9 +26,9 @@ const EASY_VIEW_STATUS_CELL =
 const EASY_VIEW_TD_BASE = "px-4 py-3 text-sm text-primary sm:px-5 sm:py-3.5";
 
 const easyViewContactTd = `${EASY_VIEW_TD_BASE} align-middle min-w-0`;
-const easyViewSubmittedTd = `${EASY_VIEW_TD_BASE} align-middle whitespace-nowrap tabular-nums`;
+const easyViewSubmittedTd = `${EASY_VIEW_TD_BASE} align-middle whitespace-nowrap tabular-nums text-center`;
 const easyViewUnpaidTd = `${EASY_VIEW_TD_BASE} align-middle tabular-nums min-w-0`;
-const easyViewAttachmentTd = `${EASY_VIEW_TD_BASE} align-middle flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-start gap-1.5 overflow-visible sm:gap-2`;
+const easyViewAttachmentTd = `${EASY_VIEW_TD_BASE} align-middle flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 overflow-visible sm:gap-2`;
 const easyViewStatusTd = `${EASY_VIEW_TD_BASE} align-middle min-w-0 max-w-full overflow-hidden`;
 
 /** For the **first** visible bill only: list scrolled this far from top — default invoice aside (no offset). */
@@ -46,7 +46,7 @@ const EASY_VIEW_ROW_GRID = `grid w-full min-w-0 grid-cols-1 gap-4 ${EASY_VIEW_GR
 
 const EASY_VIEW_HEADER_GRID = `mb-3 hidden min-w-0 md:grid ${EASY_VIEW_GRID_COLS} md:gap-x-3 md:items-end md:px-0`;
 
-const EASY_VIEW_HEADER_CELL = "text-left text-xs font-medium text-[#656565] sm:text-sm";
+const EASY_VIEW_HEADER_CELL = "text-left text-xs font-medium text-[#656565] sm:text-sm pt-0 pb-0 translate-y-[15px]";
 
 const EASY_VIEW_BANKSLIP_VOIDED_BTN =
   "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent text-primary/40 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary sm:gap-2";
@@ -56,7 +56,7 @@ const EASY_VIEW_BANKSLIP_DEFAULT_BTN =
 
 /** Fixed-width area so rows without files still reserve space; partial icon stays column-aligned with rows that have a slip. */
 const EASY_VIEW_BANKSLIP_SLOT =
-  "flex h-10 w-24 shrink-0 items-center justify-start sm:h-[42px] sm:w-[6.5rem]";
+  "flex h-10 w-24 shrink-0 items-center justify-center sm:h-[42px] sm:w-[6.5rem]";
 
 /** Sortable columns exposed in easy view (same `compareRows` as the main table). */
 type EasyViewSortKey = Extract<SortKey, "contact" | "submittedDate" | "unpaidAmount" | "status">;
@@ -172,16 +172,12 @@ function EasyViewStatusCell({
   onPaymentRequestedPay,
   onPaidStatusOpen,
   onDraftBillOpen,
-  onRequestVoid,
-  voidDisabled,
 }: {
   row: PaymentRequestRow;
   isElevated: boolean;
   onPaymentRequestedPay: (rowId: string) => void;
   onPaidStatusOpen: (rowId: string) => void;
   onDraftBillOpen: (rowId: string) => void;
-  onRequestVoid?: (rowId: string) => void;
-  voidDisabled?: boolean;
 }) {
   const stop = (e: ReactMouseEvent) => { e.stopPropagation(); e.preventDefault(); };
   const statusHoverClass =
@@ -265,32 +261,18 @@ function EasyViewStatusCell({
   }
   if (row.status === "Payment Requested") {
     return (
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={`${EASY_VIEW_STATUS_CELL} ${statusHoverClass} cursor-pointer border border-transparent bg-secondary text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none`}
-          onClick={(e) => {
-            stop(e);
-            if (!isElevated) return;
-            onPaymentRequestedPay(row.id);
-          }}
-          disabled={!isElevated}
-        >
-          Pay
-        </button>
-        <button
-          type="button"
-          className={`${EASY_VIEW_STATUS_CELL} ${statusHoverClass} cursor-pointer border border-transparent bg-red-600 hover:bg-red-700 text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none transition-colors`}
-          onClick={(e) => {
-            stop(e);
-            if (!isElevated) return;
-            onRequestVoid?.(row.id)
-          }}
-          disabled={!isElevated || voidDisabled}
-        >
-          Void
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`${EASY_VIEW_STATUS_CELL} ${statusHoverClass} cursor-pointer border border-transparent bg-secondary text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none`}
+        onClick={(e) => {
+          stop(e);
+          if (!isElevated) return;
+          onPaymentRequestedPay(row.id);
+        }}
+        disabled={!isElevated}
+      >
+        Pay
+      </button>
     );
   }
   return (
@@ -359,7 +341,6 @@ export function PaymentRequestEasyView({
   isViewOnly,
   onDraftBillSaved,
   easyViewBillMutatePending = false,
-  onRowDelete,
   easyViewDraftDeleteOpen = false,
 }: PaymentRequestEasyViewProps) {
   const [sort, setSort] = useState<{ key: EasyViewSortKey; dir: "asc" | "desc" }>({
@@ -533,7 +514,7 @@ export function PaymentRequestEasyView({
 
   return (
     <div
-      className={`flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-1 sm:px-6 lg:flex-row lg:items-stretch lg:gap-6 lg:pt-2 ${mainBackgroundClass}`}
+      className={`flex min-h-0 flex-1 flex-col gap-0 px-4 pb-0 pt-0 sm:px-6 lg:flex-row lg:items-stretch lg:gap-4 lg:pt-2 ${mainBackgroundClass}`}
       onClick={(e) => {
         if (!onOutsideCloseRequested) return;
         const target = e.target as HTMLElement | null;
@@ -543,7 +524,7 @@ export function PaymentRequestEasyView({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex w-full min-w-0 flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 truncate text-[18px] font-semibold text-black" title={headerStatusLabel}>
             {headerStatusLabel}
           </span>
@@ -594,23 +575,23 @@ export function PaymentRequestEasyView({
           </div>
           {loading ? (
             <div className={EASY_VIEW_HEADER_GRID} aria-hidden>
-              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-center justify-start gap-1 pb-1`}>
+              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,11rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <div className="size-7 shrink-0 rounded bg-gray-200/90 animate-pulse" />
               </div>
-              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-center justify-start gap-1 pb-1`}>
+              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,9.5rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <div className="size-7 shrink-0 rounded bg-gray-200/90 animate-pulse" />
               </div>
-              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-center justify-start gap-1 pb-1`}>
+              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,6rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <span className="size-7 shrink-0" aria-hidden />
               </div>
-              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-center justify-start gap-1 pb-1`}>
+              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,7.5rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <div className="size-7 shrink-0 rounded bg-gray-200/90 animate-pulse" />
               </div>
-              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-center justify-start gap-1 pb-1`}>
+              <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,5rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <div className="size-7 shrink-0 rounded bg-gray-200/90 animate-pulse" />
               </div>
@@ -618,7 +599,7 @@ export function PaymentRequestEasyView({
           ) : (
             <div className={EASY_VIEW_HEADER_GRID}>
               <div
-                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-center justify-start gap-1`}
+                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-start gap-1 -translate-x-[10px]`}
               >
                 <span className="min-w-0 shrink truncate">Supplier</span>
                 <EasyViewSortChevronButton
@@ -630,8 +611,10 @@ export function PaymentRequestEasyView({
                 />
               </div>
               <div
-                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-center justify-start gap-1`}
+                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-center gap-1`}
               >
+                {/* Invisible spacer balances the sort chevron on the right so the label centers over the centered content. */}
+                <span className="size-7 shrink-0" aria-hidden />
                 <span className="min-w-0 shrink truncate">Submitted Date</span>
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
@@ -642,14 +625,16 @@ export function PaymentRequestEasyView({
                 />
               </div>
               <div
-                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-center justify-start gap-1`}
+                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-center gap-1`}
               >
+                {/* Left spacer balances the right one so the centered label aligns with the centered content. */}
+                <span className="size-4 shrink-0" aria-hidden />
                 <span className="min-w-0 shrink truncate">Bank Slip</span>
                 {/* Invisible spacer matches the sort-chevron button height so the label aligns with the other columns. */}
                 <span className="size-7 shrink-0" aria-hidden />
               </div>
               <div
-                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-center justify-start gap-1`}
+                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-start gap-1`}
               >
                 <span className="min-w-0 shrink truncate">Unpaid Amount</span>
                 <EasyViewSortChevronButton
@@ -661,8 +646,10 @@ export function PaymentRequestEasyView({
                 />
               </div>
               <div
-                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-center justify-start gap-1`}
+                className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-center gap-1`}
               >
+                {/* Invisible spacer balances the sort chevron so the label centers over the centered status button. */}
+                <span className="size-1 shrink-0" aria-hidden />
                 <span className="min-w-0 shrink truncate">Status</span>
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
@@ -731,6 +718,12 @@ export function PaymentRequestEasyView({
                   >
                     <a
                       href={`/payment-request/${row.id}`}
+                      onClick={(e) => {
+                        if (dimRow) {
+                          e.preventDefault();
+                          onOutsideCloseRequested?.();
+                        }
+                      }}
                       className={`${EASY_VIEW_ROW_GRID} cursor-pointer transition-colors hover:border-primary/20 hover:bg-gray-50/80`}
                     >
                       
@@ -741,7 +734,12 @@ export function PaymentRequestEasyView({
                         </div>
                         <div className={easyViewSubmittedTd}>{row.submittedDate}</div>
                         <div className={easyViewAttachmentTd}>
-                          <div className="flex w-full min-w-0 max-w-full flex-row flex-nowrap items-center gap-1.5 sm:gap-2">
+                          <div className="flex w-full min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 sm:gap-2">
+                            {/* Left spacers balance the right-side info icon (and partial icon, when shown) so the slip slot centers in the column. */}
+                            {row.status === "Partially Paid" ? (
+                              <span className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                            ) : null}
+                            <span className="size-4 shrink-0" aria-hidden />
                             <div className={EASY_VIEW_BANKSLIP_SLOT}>
                               <EasyViewBankSlipControl row={row} onOpen={onOpenBankSlipUpload} />
                             </div>
@@ -792,8 +790,6 @@ export function PaymentRequestEasyView({
                             onPaymentRequestedPay={onPaymentRequestedPay}
                             onPaidStatusOpen={onPaidStatusOpen}
                             onDraftBillOpen={onDraftBillOpen}
-                            onRequestVoid={() => onRowDelete?.(row.id)}
-                            voidDisabled={draftDetailActions.deleteDisabled}  
                           />
                         </div>
                       

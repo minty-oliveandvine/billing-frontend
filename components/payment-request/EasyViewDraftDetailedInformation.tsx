@@ -5,17 +5,13 @@ import type { EntityBillContact } from "@/lib/api";
 import { BillContactPicker } from "@/components/BillContactPicker";
 import { DateTextField } from "@/components/DateTextField";
 import { ThemedSelect, type ThemedSelectOption } from "@/components/ThemedSelect";
-import {
-  currencyOptionsForEditing,
-  isoCodeToModalCurrency,
-  mergeSelectOption,
-  modalCurrencyToIsoCode,
-} from "@/lib/billFormSelectOptions";
+import { mergeSelectOption } from "@/lib/billFormSelectOptions";
 import { currencyLabelForCode } from "@/lib/currencyDisplay";
 import {
   formatPaymentRequestDetailLongDate,
   paymentRequestDetailAmountValueInputClass,
   paymentRequestDetailCancelButtonClass,
+  paymentRequestDetailCurrencyCellClass,
   paymentRequestDetailDateTextInputClass,
   paymentRequestDetailDateTextInputClassError,
   paymentRequestDetailEditToggleButtonClass,
@@ -328,8 +324,6 @@ export function EasyViewDraftDetailedInformationEdit({
   } = data;
 
   const mergedAccountOptions = mergeSelectOption(accountOptions, accountCode);
-  const currencyOptions = currencyOptionsForEditing(currencyCode);
-  const currencyModalValue = isoCodeToModalCurrency(currencyCode);
 
   return (
     <div className={easyViewDetailedInformationShellClass}>
@@ -434,23 +428,16 @@ export function EasyViewDraftDetailedInformationEdit({
             Amount<span className="text-red-500"> *</span>
           </label>
           <div className="mt-0.5 flex min-w-0 flex-col gap-2 sm:flex-row sm:gap-0">
-            <ThemedSelect
+            <div
               id={idCur}
-              ariaLabel="Currency"
-              value={currencyModalValue ?? ""}
-              onChange={(v) => onPatchChange({ currencyCode: modalCurrencyToIsoCode(v) })}
-              options={currencyOptions}
-              className="w-full shrink-0 sm:w-24"
-              fullWidth
-              uniformFill
-              error={!!amountError}
-              triggerClassName={
-                amountError
-                  ? "w-full px-2 sm:px-3 rounded-2xl sm:rounded-l-2xl sm:rounded-r-none sm:border-r-0 border-red-500 bg-white text-black hover:bg-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200/50"
-                  : "w-full px-2 sm:px-3 rounded-2xl sm:rounded-l-2xl sm:rounded-r-none sm:border-r-0 bg-white text-black hover:bg-white"
+              aria-label="Currency"
+              className={
+                `${paymentRequestDetailCurrencyCellClass} ` +
+                (amountError ? "border-red-500" : "border-gray-300")
               }
-              disabled={disabled}
-            />
+            >
+              {currencyLabelForCode(currencyCode)}
+            </div>
             <input
               id={idAmt}
               type="text"

@@ -8,12 +8,7 @@ import { ThemedSelect } from "@/components/ThemedSelect";
 import { currencyLabelForCode } from "@/lib/currencyDisplay";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
 import type { ThemedSelectOption } from "@/components/ThemedSelect";
-import {
-  currencyOptionsForEditing,
-  isoCodeToModalCurrency,
-  mergeSelectOption,
-  modalCurrencyToIsoCode,
-} from "@/lib/billFormSelectOptions";
+import { mergeSelectOption } from "@/lib/billFormSelectOptions";
 import type { EntityBillContact } from "@/lib/api";
 
 /** Bill / request fields shown in the “Detailed Information” card. */
@@ -71,6 +66,10 @@ export const paymentRequestDetailModalTextInputClass =
 
 export const paymentRequestDetailAmountValueInputClass =
   "box-border h-11 min-h-[44px] min-w-0 w-full rounded-2xl border border-gray-300 bg-white px-3 text-base text-black placeholder:text-gray-700 focus:outline-none focus:ring-2 sm:min-h-11 sm:flex-1 sm:rounded-l-none sm:rounded-r-2xl sm:border-l-0 sm:text-sm focus:border-secondary focus:ring-secondary/25";
+
+/** Static currency cell left of the amount input — mirrors the amount input's border/size. */
+export const paymentRequestDetailCurrencyCellClass =
+  "box-border flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center rounded-2xl border bg-white px-2 text-base text-black sm:min-h-11 sm:w-24 sm:rounded-l-2xl sm:rounded-r-none sm:border-r-0 sm:px-3 sm:text-sm";
 
 export const paymentRequestDetailDateTextInputClass =
   "relative z-[1] box-border h-11 min-h-[44px] w-full rounded-2xl border border-gray-300 bg-white py-0 pl-3 pr-3 text-base text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/25 [color-scheme:light] sm:min-h-11 sm:text-sm";
@@ -328,8 +327,6 @@ export function PaymentRequestDetailedInfo({
   const idContactError = `detail-contact-err-${uid}`;
 
   const accountOptions = mergeSelectOption(accountOptionsProp ?? [], accountCode);
-  const currencyOptions = currencyOptionsForEditing(currencyCode);
-  const currencyModalValue = isoCodeToModalCurrency(currencyCode);
   const currencyDisplayLabel = currencyLabelForCode(currencyCode);
 
   return (
@@ -465,23 +462,16 @@ export function PaymentRequestDetailedInfo({
             {isEditing ? (
               <>
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:gap-0">
-                  <ThemedSelect
+                  <div
                     id={idCurrency}
-                    ariaLabel="Currency"
-                    value={currencyModalValue ?? ""}
-                    onChange={(v) => patch({ currencyCode: modalCurrencyToIsoCode(v) })}
-                    options={currencyOptions}
-                    className="w-full shrink-0 sm:w-24"
-                    fullWidth
-                    uniformFill
-                    error={!!amountError}
-                    triggerClassName={
-                      amountError
-                        ? "w-full px-2 sm:px-3 rounded-2xl sm:rounded-l-2xl sm:rounded-r-none sm:border-r-0 border-red-500 bg-white text-black hover:bg-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200/50"
-                        : "w-full px-2 sm:px-3 rounded-2xl sm:rounded-l-2xl sm:rounded-r-none sm:border-r-0 bg-white text-black hover:bg-white"
+                    aria-label="Currency"
+                    className={
+                      `${paymentRequestDetailCurrencyCellClass} ` +
+                      (amountError ? "border-red-500" : "border-gray-300")
                     }
-                    disabled={disabled}
-                  />
+                  >
+                    {currencyDisplayLabel}
+                  </div>
                   <input
                     id={idAmount}
                     type="text"

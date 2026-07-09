@@ -22,10 +22,6 @@ import {
   uploadBillAttachments,
 } from "@/lib/api";
 import type { EntityBillContact } from "@/lib/api";
-import {
-  BILL_CURRENCY_SELECT_OPTIONS,
-  modalCurrencyToIsoCode,
-} from "@/lib/billFormSelectOptions";
 import { DateTextField } from "@/components/DateTextField";
 
 export type PaymentRequestModalProps = {
@@ -227,7 +223,6 @@ export function PaymentRequestModal({
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const previewFile = previewFileId ? uploadedFiles.find((x) => x.id === previewFileId)?.file ?? null : null;
   const [billNo, setBillNo] = useState("");
-  const [currency, setCurrency] = useState("HK$");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   /** Xero ContactID (empty while user is typing a new name). */
@@ -345,7 +340,6 @@ export function PaymentRequestModal({
     setDueDate("");
     setBillNo("");
     setDescription("");
-    setCurrency("HK$");
     setUploadedFiles([]);
     setPreviewFileId(null);
     let cancelled = false;
@@ -448,7 +442,7 @@ export function PaymentRequestModal({
         xero_contact_id: selectedContact?.xero_contact_id || undefined,
         description: description || undefined,
         amount: amountStr,
-        currency_code: modalCurrencyToIsoCode(currency) || undefined,
+        currency_code: "HKD",
         invoice_date: invoiceDate || undefined,
         due_date: dueDate || undefined,
         reference: billNo || undefined,
@@ -534,7 +528,7 @@ export function PaymentRequestModal({
         xero_contact_id: selectedContact?.xero_contact_id || undefined,
         description,
         amount: amountStr,
-        currency_code: modalCurrencyToIsoCode(currency),
+        currency_code: "HKD",
         invoice_date: invoiceDate || null,
         due_date: dueDate || null,
         reference: billNo,
@@ -761,22 +755,15 @@ export function PaymentRequestModal({
                 Amount
               </FieldLabel>
               <div className="flex min-w-0 flex-row gap-0">
-                <ThemedSelect
-                  id="pr-currency"
-                  ariaLabel="Currency"
-                  value={currency ?? ""}
-                  onChange={setCurrency}
-                  options={BILL_CURRENCY_SELECT_OPTIONS}
-                  className="w-24 shrink-0"
-                  fullWidth
-                  uniformFill
-                  error={!!fieldErrors.amount}
-                  triggerClassName={
-                    fieldErrors.amount
-                      ? "w-full px-2 sm:px-3 rounded-l-2xl rounded-r-none border-r-0 border-red-500 bg-white text-black hover:bg-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200/50"
-                      : "w-full px-2 sm:px-3 rounded-l-2xl rounded-r-none border-r-0 bg-white text-black hover:bg-white"
+                <div
+                  aria-label="Currency"
+                  className={
+                    "box-border flex h-11 min-h-[44px] w-24 shrink-0 items-center justify-center rounded-l-2xl rounded-r-none border border-r-0 bg-white px-2 text-base text-black sm:min-h-11 sm:px-3 sm:text-sm " +
+                    (fieldErrors.amount ? "border-red-500" : "border-gray-300")
                   }
-                />
+                >
+                  HK$
+                </div>
                 <input
                   id="pr-amount"
                   type="text"

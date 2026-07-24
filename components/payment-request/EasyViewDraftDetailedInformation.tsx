@@ -6,7 +6,8 @@ import { BillContactPicker } from "@/components/BillContactPicker";
 import { DateTextField } from "@/components/DateTextField";
 import { ThemedSelect, type ThemedSelectOption } from "@/components/ThemedSelect";
 import { mergeSelectOption } from "@/lib/billFormSelectOptions";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
+import { acceptAmountInput, formatAmount, toAmountEditString } from "@/lib/amountFormat";
 import {
   formatPaymentRequestDetailLongDate,
   paymentRequestDetailAmountValueInputClass,
@@ -178,7 +179,8 @@ export function EasyViewDraftDetailedInformation({
   readOnlyFooter?: ReactNode;
 }) {
   const { billNo, amount, currencyCode, description, contact, accountCode, invoiceDate, dueDate } = data;
-  const currencyDisplayLabel = currencyLabelForCode(currencyCode);
+  const entityCurrency = useEntityCurrency();
+  const currencyDisplayLabel = entityCurrency;
 
   return (
     <div className={easyViewDetailedInformationShellClass}>
@@ -302,6 +304,7 @@ export function EasyViewDraftDetailedInformationEdit({
   onSave: () => void;
 }) {
   const uid = useId();
+  const entityCurrency = useEntityCurrency();
   const idBillNo = `ev-draft-bn-${uid}`;
   const idInv = `ev-draft-inv-${uid}`;
   const idDue = `ev-draft-due-${uid}`;
@@ -436,14 +439,21 @@ export function EasyViewDraftDetailedInformationEdit({
                 (amountError ? "border-red-500" : "border-gray-300")
               }
             >
-              {currencyLabelForCode(currencyCode)}
+              {entityCurrency}
             </div>
             <input
               id={idAmt}
               type="text"
               inputMode="decimal"
+              placeholder="0.00"
               value={amount ?? ""}
-              onChange={(e) => onPatchChange({ amount: e.target.value })}
+              onChange={(e) => {
+                const value = acceptAmountInput(e.target.value);
+                if (value === null) return;
+                onPatchChange({ amount: value });
+              }}
+              onFocus={() => onPatchChange({ amount: toAmountEditString(amount) })}
+              onBlur={(e) => onPatchChange({ amount: formatAmount(e.target.value) })}
               disabled={disabled}
               aria-invalid={!!amountError}
               className={

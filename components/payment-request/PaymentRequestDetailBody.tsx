@@ -24,7 +24,14 @@ import {
   type PaymentItem,
 } from "@/lib/api";
 import type { ThemedSelectOption } from "@/components/ThemedSelect";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
+import {
+  MAX_AMOUNT_INT_DIGITS,
+  formatAmount,
+  formatMoney,
+  isWithinAmountLimits,
+  parseAmount,
+} from "@/lib/amountFormat";
 import { billStatusToDisplayLabel } from "@/lib/billStatusDisplay";
 import { billHasRemainingCountablePayments, billStatusShouldRollbackWhenNoPayments } from "@/lib/billStatusRollback";
 import { enrichAccountCodeWithOptions } from "@/lib/billFormSelectOptions";
@@ -69,9 +76,11 @@ function validateDetailRequiredForSubmit(d: PaymentRequestDetailedInfoData): Det
   if (!d.contact.trim()) errors.contact = "Supplier is required.";
   if (!d.invoiceDate.trim()) errors.invoiceDate = "Invoice date is required.";
   if (!d.dueDate.trim()) errors.dueDate = "Due date is required.";
-  const amt = Number.parseFloat((d.amount ?? "").replace(/,/g, ""));
-  if (!(d.amount ?? "").trim() || !Number.isFinite(amt) || amt <= 0) {
+  const amt = parseAmount(d.amount);
+  if (amt === null || amt <= 0) {
     errors.amount = "Enter a valid amount greater than zero.";
+  } else if (!isWithinAmountLimits(d.amount ?? "")) {
+    errors.amount = `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
   }
   return Object.keys(errors).length ? errors : null;
 }
@@ -186,6 +195,7 @@ function computePaymentHistoryPanelStyle(anchorRoot: HTMLDivElement | null): CSS
 }
 
 export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetailBodyProps) {
+  const entityCurrency = useEntityCurrency();
   const params = useParams();
   const requestId = typeof params?.id === "string" ? params.id : "";
   const { isElevated, isViewOnly } = useUserRole();
@@ -562,15 +572,11 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
   const formData = isEditing && draft ? draft : viewData;
 
   const invoiceTotalMajor = useMemo(() => {
-    const raw = formData?.amount ?? "0";
-    return Number.parseFloat(raw.replace(/,/g, "")) || 0;
+    return parseAmount(formData?.amount) ?? 0;
   }, [formData?.amount]);
 
   const unpaidAmountDisplay = useMemo(() => {
-    const raw = bill?.amount_due ?? "";
-    const n = Number.parseFloat(raw.replace(/,/g, ""));
-    if (!Number.isFinite(n)) return undefined;
-    return n.toLocaleString("en-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatAmount(bill?.amount_due) || undefined;
   }, [bill?.amount_due]);
 
   const handleEdit = useCallback(() => {
@@ -793,7 +799,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         (sum, p) => sum + parseFloat(p.amount || "0"),
         0,
       );
-      const newAmount = Number.parseFloat(draft.amount.replace(/,/g, ""));
+      const newAmount = parseAmount(draft.amount) ?? NaN;
       if (Number.isFinite(newAmount) && newAmount < totalPaid - 1e-9) {
         setOverpaymentWarningOpen(true);
         return;
@@ -874,7 +880,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
     );
     if (completedPayments.length > 0) {
       const totalPaid = completedPayments.reduce((sum, p) => sum + parseFloat(p.amount || "0"), 0);
-      const newAmount = Number.parseFloat(info.amount.replace(/,/g, ""));
+      const newAmount = parseAmount(info.amount) ?? NaN;
       if (Number.isFinite(newAmount) && newAmount < totalPaid - 1e-9) {
         setOverpaymentWarningOpen(true);
         return;
@@ -1006,7 +1012,8 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
     }
   }, [requestId, bill, isReturning, bumpAudit, onBillUpdated]);
 
-  const currencyLabel = formData ? currencyLabelForCode(formData.currencyCode) : "HK$";
+  // Always the entity's selected currency (entities.currency_id -> iso_code).
+  const currencyLabel = entityCurrency;
 
   const paymentHistoryRows = useMemo((): PaymentHistoryRow[] => {
     if (!requestId) return [];
@@ -1033,7 +1040,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         billId: p.bill_id,
         billStatus: p.bill_status,
         date: dateLabel,
-        amountLabel: `(${currencyLabel} ${parseFloat(p.amount || "0").toLocaleString("en-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+        amountLabel: `(${formatMoney(p.amount || "0", currencyLabel)})`,
         statusLabel,
         invoiceNo: ref,
         invoiceHref: forThisBill ? "#" : `/payment-request/${p.bill_id}`,
@@ -1473,7 +1480,6 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         readOnly={recordPaymentReadOnly}
         invoiceAmount={invoiceTotalMajor}
         description={bill?.description}
-        currencyCode={formData?.currencyCode ?? "HKD"}
         onPaymentSaved={async () => {
           await loadPayments();
           await reloadBill();

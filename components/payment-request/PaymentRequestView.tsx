@@ -27,7 +27,8 @@ import {
   type BillDetail
 } from "@/lib/api";
 import type { InvoiceAttachmentPreviewItem } from "./InvoiceAttachmentPreview";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
+import { formatAmount, formatMoney, parseAmount } from "@/lib/amountFormat";
 import { fetchBillBankSlipEnrichment } from "@/lib/bankSlipEnrichment";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
 import { getAuth } from "@/lib/auth";
@@ -48,19 +49,13 @@ function formatDate(dateStr: string): string {
   return formatIsoDateForDisplay(`${y}-${m}-${day}`) || dateStr;
 }
 
-function formatAmount(value: string | number): string {
-  const n = typeof value === "string" ? parseFloat(value) : value;
-  if (!Number.isFinite(n)) return "0.00";
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function mapBillToRow(bill: BillListItem): PaymentRequestRow {
+function mapBillToRow(bill: BillListItem, entityCurrency = ""): PaymentRequestRow {
   const status = billStatusToDisplayLabel(bill.status);
-  const iso = (bill.currency_code && bill.currency_code.trim()) || "HKD";
-  const symbol = currencyLabelForCode(iso);
+  // Currency displays ALWAYS use the entity's selected currency
+  // (entities.currency_id -> iso_code) — never the bill's stored code and
+  // never a hardcoded default. Blank until the registry lookup resolves.
+  const iso = entityCurrency;
+  const symbol = iso;
   const statusNorm = (bill.status ?? "").trim().toLowerCase().replace(/-/g, "_");
   const xeroActive =
     (bill.published ?? "").trim() === "published" ||
@@ -75,11 +70,8 @@ function mapBillToRow(bill: BillListItem): PaymentRequestRow {
     invoiceDate: bill.invoice_date ? formatDate(bill.invoice_date) : "",
     status,
     submittedDate: formatDate(bill.created_at),
-    unpaidAmount:
-      parseFloat(bill.amount_due) !== 0
-        ? `${symbol} ${formatAmount(bill.amount_due)}`
-        : `${symbol} 0.00`,
-    invoiceTotal: bill.amount ? formatAmount(bill.amount) : "",
+    unpaidAmount: formatMoney(bill.amount_due, symbol) || (symbol ? `${symbol} 0.00` : "0.00"),
+    invoiceTotal: formatAmount(bill.amount),
     payment: "",
     paidDate: bill.paid_at ? formatDate(bill.paid_at) : "",
     bankslip: "",
@@ -127,6 +119,7 @@ export type PaymentRequestViewProps = {
 export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
   const router = useRouter();
   const { isElevated, isViewOnly, isReadOnly } = useUserRole();
+  const entityCurrency = useEntityCurrency();
   const [currentEntityId, setCurrentEntityId] = useState<string>("");
 
   useEffect(() => {
@@ -241,8 +234,8 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         page_size: 100,
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
         ...(apiStatus ? { status: apiStatus } : {}),
-        ...(minAmount !== "" ? { amount_min: parseFloat(minAmount) } : {}),
-        ...(maxAmount !== "" ? { amount_max: parseFloat(maxAmount) } : {}),
+        ...(parseAmount(minAmount) !== null ? { amount_min: parseAmount(minAmount)! } : {}),
+        ...(parseAmount(maxAmount) !== null ? { amount_max: parseAmount(maxAmount)! } : {}),
         ...(dateField ? { date_field: dateField } : {}),
         ...(startDate ? { date_from: startDate } : {}),
         ...(endDate ? { date_to: endDate } : {}),
@@ -251,7 +244,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       // response so it can't overwrite the fresher list.
       if (seq !== loadSeqRef.current) return;
       setRawBills(data);
-      const mapped = data.map(mapBillToRow);
+      const mapped = data.map((b) => mapBillToRow(b, entityCurrency));
       setBills(mapped);
       const BATCH = 5;
       const enriched: PaymentRequestRow[] = [];
@@ -287,7 +280,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [debouncedSearch, statusFilters, minAmount, maxAmount, dateType, startDate, endDate]);
+  }, [debouncedSearch, statusFilters, minAmount, maxAmount, dateType, startDate, endDate, entityCurrency]);
 
   /**
    * Optimistically drop bills from local state so a void/delete disappears
@@ -322,7 +315,6 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         contactTitle={easyViewPaySource.contact?.trim() ?? ""}
         readOnly={isViewOnly || easyViewPayReadOnly}
         invoiceAmount={parseFloat(easyViewPaySource.amount ?? "0") || 0}
-        currencyCode={easyViewPaySource.currency_code?.trim() || "HKD"}
         description={easyViewPayBill?.description ?? ""}
         onPaymentSaved={loadBills}
       />
@@ -632,11 +624,6 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
             ? parseFloat(rawBills.find((b) => b.id === recordPaymentTarget.billId)?.amount ?? "0")
             : 0
         }
-        currencyCode={
-          recordPaymentTarget
-            ? rawBills.find((b) => b.id === recordPaymentTarget.billId)?.currency_code?.trim() || "HKD"
-            : "HKD"
-        }
         onPaymentSaved={loadBills}
       />
       <RowDeleteConfirmModal
@@ -683,10 +670,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
           onBankSlipFileDeleted={loadBills}
           inlineUploadBillContext={
             !easyViewBankSlipReadOnly && easyViewBankSlipRowId
-              ? {
-                  billId: easyViewBankSlipRowId,
-                  currencyCode: easyViewBankSlipSourceRow?.currencyCode ?? "HKD",
-                }
+              ? { billId: easyViewBankSlipRowId }
               : undefined
           }
           onInlineUploadSuccess={loadBills}

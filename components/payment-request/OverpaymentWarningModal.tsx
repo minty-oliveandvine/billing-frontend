@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import type { PaymentItem } from "@/lib/api";
 import { formatDateInTimeZoneForDisplay, formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
+import { formatMoney } from "@/lib/amountFormat";
 
 export type OverpaymentWarningModalProps = {
   open: boolean;
@@ -29,13 +30,6 @@ const focusRing =
 const cancelClass = `box-border h-12 min-h-[48px] w-full cursor-pointer rounded-lg border-2 border-secondary bg-white px-4 text-sm font-semibold text-secondary transition-colors hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing} sm:h-11 sm:min-h-[44px] sm:w-auto`;
 
 const primaryClass = `box-border h-12 min-h-[48px] w-full cursor-pointer rounded-lg border border-transparent bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition-opacity duration-200 ease-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:opacity-60 ${focusRing} sm:h-11 sm:min-h-[44px] sm:w-auto`;
-
-function formatMoney(amount: number, currencyLabel: string): string {
-  return `${currencyLabel} ${amount.toLocaleString("en-HK", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 function formatPaymentDateTime(dateStr: string | null): string {
   if (!dateStr) return "—";

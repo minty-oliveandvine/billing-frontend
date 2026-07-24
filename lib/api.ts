@@ -504,6 +504,12 @@ export async function fetchAuthMe(): Promise<AuthMeUser> {
   return mergeEmailFromJwtIfMissing(normalizeAuthMeResponse(raw));
 }
 
+/** ISO code of the entity's selected currency (entities.currency_id ->
+ * currency_info.iso_code); currency_code is "" when the entity has none. */
+export function fetchEntityCurrency(): Promise<{ currency_code: string }> {
+  return apiFetch<{ currency_code: string }>("/auth/entity-currency");
+}
+
 // ── Bills ────────────────────────────────────────────────────────────
 
 export function fetchBills(params?: {

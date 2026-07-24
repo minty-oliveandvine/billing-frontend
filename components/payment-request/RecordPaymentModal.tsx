@@ -22,9 +22,16 @@ import { useUserRole } from "@/lib/useUserRole";
 import { PaymentDeleteConfirmModal } from "./PaymentDeleteConfirmModal";
 import { BankSlipDetailsModal, type BankSlipDetails } from "./BankSlipDetailsModal";
 import { buildBankSlipDetailsFromPaymentList } from "@/lib/bankSlipEnrichment";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
 import { shouldShowPaymentInHistory } from "@/lib/paymentHistoryDisplay";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
+import {
+  acceptAmountInput,
+  formatAmount,
+  formatMoney,
+  parseAmount,
+  toAmountEditString,
+} from "@/lib/amountFormat";
 
 export type RecordPaymentModalProps = {
   open: boolean;
@@ -43,11 +50,6 @@ export type RecordPaymentModalProps = {
 
 type PayMode = "full" | "partial";
 
-function formatMoney(amount: number, currencyLabel: string) {
-  const n = Math.round(amount * 100) / 100;
-  return `${currencyLabel} ${n.toLocaleString("en-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function formatPaymentDateLabel(dateStr: string | null) {
   if (!dateStr) return "—";
   const head = dateStr.trim().slice(0, 10);
@@ -60,32 +62,6 @@ function formatPaymentDateLabel(dateStr: string | null) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return formatIsoDateForDisplay(`${y}-${m}-${day}`) || dateStr;
-}
-
-function formatCurrency(value: string): string {
-  const cleaned = value.trim().replace(/,/g, "");
-  const num = parseFloat(cleaned);
-  
-  if (!cleaned || !Number.isFinite(num)) {
-    return "";
-  }
-
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatComma(value: string): string {
-  // Same as formatCurrency for this use case
-  return formatCurrency(value);
-}
-
-function parseAmount(raw: string): number | null {
-  const t = raw.trim().replace(/,/g, "");
-  if (!t) return null;
-  const n = parseFloat(t);
-  return Number.isFinite(n) ? n : null;
 }
 
 function todayISO() {
@@ -126,14 +102,17 @@ export function RecordPaymentModal({
   billStatus,
   invoiceAmount = 0,
   description,
-  currencyCode = "HKD",
   contactTitle,
   onPaymentSaved,
   readOnly = false,
   presentation = "modal",
 }: RecordPaymentModalProps) {
-  const iso = (currencyCode || "HKD").trim() || "HKD";
-  const currencyLabel = currencyLabelForCode(iso);
+  // Currency ALWAYS comes from the entity's selected currency
+  // (entities.currency_id -> iso_code) — display and payloads alike; no
+  // per-bill or hardcoded fallback. Blank until the lookup resolves.
+  const entityCurrency = useEntityCurrency();
+  const currencyLabel = entityCurrency;
+  const iso = entityCurrency;
   const { isElevated, isViewOnly } = useUserRole();
   // Delete payments requires elevated role AND the user must not be in
   // read-only mode (system superuser without entity membership).
@@ -310,8 +289,7 @@ export function RecordPaymentModal({
 
   useEffect(() => {
     if (!open || payMode !== "full") return;
-    const fullAmount = remaining > 0 ? remaining.toFixed(2) : "";
-    setDraftAmount(fullAmount ? formatCurrency(fullAmount) : "");
+    setDraftAmount(remaining > 0 ? formatAmount(remaining) : "");
   }, [open, payMode, remaining]);
   //
   //
@@ -716,35 +694,12 @@ export function RecordPaymentModal({
                         placeholder="0.00"
                         value={draftAmount ?? ""}
                         onChange={(e) => {
-                        let value = e.target.value;
-                        
-                        // Remove commas for validation
-                        const cleanValue = value.replace(/,/g, "");
-                        
-                        // Allow only digits and one decimal point
-                        if (!/^\d*\.?\d*$/.test(cleanValue)) {
-                          return; // Reject invalid characters
-                        }
-                        
-                        // If there's a decimal point, check decimal places
-                        if (cleanValue.includes(".")) {
-                          const parts = cleanValue.split(".");
-                          // Only keep up to 2 decimal places
-                          if (parts[1] && parts[1].length > 2) {
-                            value = parts[0] + "." + parts[1].substring(0, 2);
-                          } else {
-                            value = cleanValue;
-                          }
-                        } else {
-                          value = cleanValue;
-                        }
-                        
-                        setDraftAmount(value);
-                      }}
-                      onBlur={(e) => {
-                        const formatted = formatCurrency(e.target.value);
-                        setDraftAmount(formatted);
-                      }}
+                          const value = acceptAmountInput(e.target.value);
+                          if (value === null) return;
+                          setDraftAmount(value);
+                        }}
+                        onFocus={() => setDraftAmount((prev) => toAmountEditString(prev))}
+                        onBlur={(e) => setDraftAmount(formatAmount(e.target.value))}
                         readOnly={payMode === "full"}
                         className="box-border min-h-[44px] min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-base text-black placeholder:text-gray-700 read-only:cursor-default read-only:text-gray-700 read-only:placeholder:text-gray-500 focus:outline-none focus:ring-0 sm:min-h-11 sm:text-sm"
                       />
@@ -781,36 +736,12 @@ export function RecordPaymentModal({
                       placeholder="0.00"
                       value={draftAmount ?? ""}
                       onChange={(e) => {
-                        let value = e.target.value;
-                        
-                        // Remove commas for validation
-                        const cleanValue = value.replace(/,/g, "");
-                        
-                        // Allow only digits and one decimal point
-                        if (!/^\d*\.?\d*$/.test(cleanValue)) {
-                          return; // Reject invalid characters
-                        }
-                        
-                        // If there's a decimal point, check decimal places
-                        if (cleanValue.includes(".")) {
-                          const parts = cleanValue.split(".");
-                          // Only keep up to 2 decimal places
-                          if (parts[1] && parts[1].length > 2) {
-                            value = parts[0] + "." + parts[1].substring(0, 2);
-                          } else {
-                            value = cleanValue;
-                          }
-                        } else {
-                          value = cleanValue;
-                        }
-                        
+                        const value = acceptAmountInput(e.target.value);
+                        if (value === null) return;
                         setDraftAmount(value);
                       }}
-                      onBlur={(e) => {
-                        const formatted = formatCurrency(e.target.value);
-                        setDraftAmount(formatted);
-                      }}
-
+                      onFocus={() => setDraftAmount((prev) => toAmountEditString(prev))}
+                      onBlur={(e) => setDraftAmount(formatAmount(e.target.value))}
                       readOnly={payMode === "full"}
                       className="box-border h-11 min-h-[44px] w-full rounded-2xl border border-gray-300 bg-white px-3 text-base text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/25 sm:min-h-11 sm:text-sm read-only:cursor-default read-only:border-gray-200 read-only:bg-gray-100 read-only:text-gray-700 read-only:shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] read-only:placeholder:text-gray-500 read-only:focus:border-gray-300 read-only:focus:ring-1 read-only:focus:ring-gray-300/50"
                     />

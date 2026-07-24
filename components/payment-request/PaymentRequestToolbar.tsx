@@ -6,6 +6,7 @@ import { DateTextField } from "@/components/DateTextField";
 import { PaymentRequestModal } from "@/components/PaymentRequestModal";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { useUserRole } from "@/lib/useUserRole";
+import { acceptAmountInput, formatAmount, toAmountEditString } from "@/lib/amountFormat";
 
 const FILTER_DATE_TYPE_OPTIONS = [
   { value: "Invoice Date", label: "Invoice Date" },
@@ -406,9 +407,37 @@ export function PaymentRequestToolbar({
                         Amount
                       </label>
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
-                        <input id={`${filterFieldIds}-min-amount`} type="text" inputMode="decimal" value={minAmount ?? ""} onChange={(e) => setMinAmount(e.target.value)} placeholder="0.00" className={textInputClass} />
+                        <input
+                          id={`${filterFieldIds}-min-amount`}
+                          type="text"
+                          inputMode="decimal"
+                          value={minAmount ?? ""}
+                          onChange={(e) => {
+                            const value = acceptAmountInput(e.target.value);
+                            if (value === null) return;
+                            setMinAmount(value);
+                          }}
+                          onFocus={() => setMinAmount(toAmountEditString(minAmount))}
+                          onBlur={(e) => setMinAmount(formatAmount(e.target.value))}
+                          placeholder="0.00"
+                          className={textInputClass}
+                        />
                         <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-700 sm:text-xs">To</span>
-                        <input id={`${filterFieldIds}-max-amount`} type="text" inputMode="decimal" value={maxAmount ?? ""} onChange={(e) => setMaxAmount(e.target.value)} placeholder="0.00" className={textInputClass} />
+                        <input
+                          id={`${filterFieldIds}-max-amount`}
+                          type="text"
+                          inputMode="decimal"
+                          value={maxAmount ?? ""}
+                          onChange={(e) => {
+                            const value = acceptAmountInput(e.target.value);
+                            if (value === null) return;
+                            setMaxAmount(value);
+                          }}
+                          onFocus={() => setMaxAmount(toAmountEditString(maxAmount))}
+                          onBlur={(e) => setMaxAmount(formatAmount(e.target.value))}
+                          placeholder="0.00"
+                          className={textInputClass}
+                        />
                       </div>
                     </div>
                     <div>

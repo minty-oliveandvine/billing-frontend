@@ -6,7 +6,7 @@ import type { PaymentRequestStatusFilter } from "./PaymentRequestToolbar";
 import { BankSlipDetailsModal, type BankSlipDetails } from "./BankSlipDetailsModal";
 import { RowDeleteConfirmModal } from "./RowDeleteConfirmModal";
 import { useUserRole } from "@/lib/useUserRole";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
 import { recordPaymentButtonClass } from "./paymentRequestButtonClasses";
 import { compareRows, type SortKey } from "@/lib/paymentRequestRowSort";
 
@@ -112,7 +112,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
     invoiceDate: "03 Mar 2026",
     status: "Draft",
     submittedDate: "01 Mar 2026",
-    unpaidAmount: "HK$ 1,500.00",
+    unpaidAmount: "1,500.00",
     invoiceTotal: "1,000.00",
     payment: "",
     paidDate: "",
@@ -127,7 +127,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
     invoiceDate: "28 Feb 2026",
     status: "Payment Requested",
     submittedDate: "27 Feb 2026",
-    unpaidAmount: "HK$ 2,400.00",
+    unpaidAmount: "2,400.00",
     invoiceTotal: "2,000.00",
     payment: "",
     paidDate: "",
@@ -142,7 +142,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
     invoiceDate: "15 Mar 2026",
     status: "Paid",
     submittedDate: "14 Mar 2026",
-    unpaidAmount: "HK$ 0.00",
+    unpaidAmount: "0.00",
     invoiceTotal: "890.00",
     payment: "",
     paidDate: "16 Mar 2026",
@@ -153,7 +153,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
       createdAt: "14 Mar 2026 10:22 HKT",
       toName: "Harbour Logistics Ltd",
       toAccount: "147-622484-838",
-      amount: "HK$ 0.00",
+      amount: "0.00",
       fromName: "BUSINESS INTEGRATED SAVINGS - HKD SAVINGS",
       fromAccount: "040-286XXX-838",
       when: "15 Mar 2026",
@@ -169,7 +169,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
     invoiceDate: "10 Mar 2026",
     status: "Returned",
     submittedDate: "08 Mar 2026",
-    unpaidAmount: "HK$ 320.00",
+    unpaidAmount: "320.00",
     invoiceTotal: "320.00",
     payment: "",
     paidDate: "11 Mar 2026",
@@ -180,7 +180,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
       createdAt: "03 Mar 2026 13:36 HKT",
       toName: "OL*VE AN* V*NE LTD",
       toAccount: "147-622484-838",
-      amount: "HK$ 1,500.00",
+      amount: "1,500.00",
       fromName: "BUSINESS INTEGRATED SAVINGS - HKD SAVINGS",
       fromAccount: "040-286XXX-838",
       when: "03 Mar 2026",
@@ -190,7 +190,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
           name: "01 Nov 2025_ChunFatSeafood_240 1.pdf",
           details: {
             createdAt: "03 Mar 2026 13:36 HKT",
-            amount: "HK$ 1,500.00",
+            amount: "1,500.00",
             when: "03 Mar 2026",
           },
         },
@@ -199,7 +199,7 @@ const DEMO_ROWS: PaymentRequestRow[] = [
           name: "Metro_Office_slip_2.pdf",
           details: {
             createdAt: "10 Mar 2026 09:15 HKT",
-            amount: "HK$ 320.00",
+            amount: "320.00",
             when: "10 Mar 2026",
             toName: "Metro Office Supplies",
           },
@@ -462,6 +462,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
 ) {
   const sortDescriptionIdPrefix = useId();
   const { isElevated, isViewOnly } = useUserRole();
+  const entityCurrency = useEntityCurrency();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bankSlipDetailsRowId, setBankSlipDetailsRowId] = useState<string | null>(null);
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null);
@@ -790,7 +791,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                           ) : null}
                           {row.invoiceTotal ? (
                             <p className="text-[11px] tabular-nums text-primary/55">
-                              (Inv total {currencyLabelForCode(row.currencyCode ?? "HKD")} {row.invoiceTotal})
+                              (Inv total {entityCurrency} {row.invoiceTotal})
                             </p>
                           ) : null}
                         </div>
@@ -1005,7 +1006,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                                   {row.unpaidAmount ? <span className={"whitespace-nowrap text-sm font-semibold sm:text-base " + unpaidAmountTextClass(row.status)}>{row.unpaidAmount}</span> : null}
                                   {row.invoiceTotal ? (
                                     <span className="whitespace-nowrap text-xs text-primary/65 tabular-nums sm:text-sm">
-                                      (Inv total {currencyLabelForCode(row.currencyCode ?? "HKD")} {row.invoiceTotal})
+                                      (Inv total {entityCurrency} {row.invoiceTotal})
                                     </span>
                                   ) : null}
                                 </div>
@@ -1144,10 +1145,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
           onBankSlipFileDeleted={onBankSlipUploaded}
           inlineUploadBillContext={
             !bankSlipDetailsReadOnly && bankSlipDetailsRowId
-              ? {
-                  billId: bankSlipDetailsRowId,
-                  currencyCode: bankSlipDetailsSourceRow?.currencyCode ?? "HKD",
-                }
+              ? { billId: bankSlipDetailsRowId }
               : undefined
           }
           onInlineUploadSuccess={onBankSlipUploaded}

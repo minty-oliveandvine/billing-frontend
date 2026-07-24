@@ -1,11 +1,5 @@
-/** Short symbol for common ISO 4217 codes (pill / money display). */
+/** Currency label for money display: the ISO 4217 code itself (e.g. "HKD").
+ * All billing UI renders amounts with the ISO code, not a symbol. */
 export function currencyLabelForCode(code: string): string {
-  const m: Record<string, string> = {
-    HKD: "HK$",
-    USD: "US$",
-    EUR: "€",
-    GBP: "£",
-    CNY: "CN¥",
-  };
-  return m[code.toUpperCase()] ?? code;
+  return (code || "").trim().toUpperCase();
 }

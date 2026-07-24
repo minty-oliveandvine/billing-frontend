@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import type { ChangeEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
+import { useEntityCurrency } from "@/lib/entityCurrency";
 import {
   ApiError,
   createPayment,
@@ -523,7 +524,8 @@ export function BankSlipDetailsModal({
   const detailsFileIdsSigRef = useRef<string | null>(null);
 
   const inlineBillId = inlineUploadBillContext?.billId;
-  const inlineCurrency = (inlineUploadBillContext?.currencyCode ?? "HKD").trim() || "HKD";
+  // Always the entity's selected currency (entities.currency_id -> iso_code).
+  const inlineCurrency = useEntityCurrency();
 
   const stagedPreviewFile = selectedStagedId ? stagedUploads.find((x) => x.id === selectedStagedId)?.file ?? null : null;
   const [stagedObjectUrl, setStagedObjectUrl] = useState<string | null>(null);

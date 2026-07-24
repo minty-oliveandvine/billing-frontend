@@ -14,7 +14,7 @@ import {
 import { InvoiceAttachmentPreview, type InvoiceAttachmentPreviewItem } from "./InvoiceAttachmentPreview";
 import { type EasyViewDraftDetailActions } from "./EasyViewDraftDetailedInformation";
 import { EasyViewDraftDetailBody, EasyViewReadonlyBillDetailBody } from "./EasyViewDraftDetailBody";
-import { currencyLabelForCode } from "@/lib/currencyDisplay";
+import { useEntityCurrency } from "@/lib/entityCurrency";
 import { statusDisplayBadgeClass } from "@/lib/billStatusDisplay";
 import { compareRows, type SortKey } from "@/lib/paymentRequestRowSort";
 import type { PaymentRequestRow } from "./PaymentRequestTable";
@@ -343,6 +343,7 @@ export function PaymentRequestEasyView({
   easyViewBillMutatePending = false,
   easyViewDraftDeleteOpen = false,
 }: PaymentRequestEasyViewProps) {
+  const entityCurrency = useEntityCurrency();
   const [sort, setSort] = useState<{ key: EasyViewSortKey; dir: "asc" | "desc" }>({
     key: "status",
     dir: "asc",
@@ -777,7 +778,7 @@ export function PaymentRequestEasyView({
                               ) : null}
                               {row.invoiceTotal ? (
                                 <span className="whitespace-nowrap text-xs text-primary/65 tabular-nums sm:text-sm">
-                                  (Inv total {currencyLabelForCode(row.currencyCode ?? "HKD")} {row.invoiceTotal})
+                                  (Inv total {entityCurrency} {row.invoiceTotal})
                                 </span>
                               ) : null}
                             </div>

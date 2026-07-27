@@ -1,14 +1,12 @@
 import { findEmailAddressInJson } from "./extractEmail";
 import { resolveMintyModuleUrl } from "./mintyEnv";
+import { API_BASE } from "./apiBase";
 
 const TOKEN_KEY = "billing_token";
 const ENTITY_ID_KEY = "billing_entity_id";
 const ENTITY_NAME_KEY = "billing_entity_name";
 
 const BILLING_TOKEN_MAX_AGE = 60 * 60 * 8; // 8 hours — matches JWT lifetime
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
 
 export type AuthInfo = {
   token: string;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { getAuth, isTokenExpired, isTokenExpiringSoon, redirectToLogin, refreshToken } from "@/lib/auth";
+import { API_BASE } from "@/lib/apiBase";
 
 // pdf.js runtime assets (worker, cMaps, standard fonts) are self-hosted under
 // /public/pdfjs — copied out of node_modules by scripts/copy-pdfjs-assets.mjs
@@ -52,9 +53,6 @@ function describePdfError(err: unknown): string {
 }
 
 const DEFAULT_MAX_PAGES = 50;
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
 
 export type PdfJsCanvasPreviewProps = {
   src: string;

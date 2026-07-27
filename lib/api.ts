@@ -9,9 +9,7 @@ import {
 } from "./auth";
 import { compressImage } from "./compressImage";
 import { findEmailAddressInJson } from "./extractEmail";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
+import { API_BASE } from "./apiBase";
 
 //  ── Error ────────────────────────────────────────────────────────────
 

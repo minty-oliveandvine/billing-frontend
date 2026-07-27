@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { decodeJwtPayload, getAuth } from "./auth";
+import { API_BASE } from "./apiBase";
 
 const ALL_BILL_ROLES = new Set(["cashier", "shop_manager", "accountant", "admin", "super_admin"]);
 const ELEVATED_ROLES = new Set(["accountant", "admin", "super_admin"]);
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
 
 type JwtClaims = {
   role: string;

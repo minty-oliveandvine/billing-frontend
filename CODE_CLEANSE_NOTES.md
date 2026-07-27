@@ -246,12 +246,55 @@ line/col** — the one frozen pre-existing error
 2 lines were removed above it. No message added or removed; the pre-existing
 failure is untouched. Baseline line number re-synced to 104.
 
-## Status
+Committed #4 + #2 together as `c51c6ef`
+("lib: dedupe JWT decode and auth-guard boilerplate").
 
-Dead-code + duplication #4 + #2 complete and verified. Next: #3 narrow header
-helper (Authorization+X-Entity-Id pair only — NOT the cross-origin `authHeaders`
-closure) → #1 API_BASE across all 7 sites (own commit, cross-subfolder).
+### Step 4 — duplication #3: auth-header helper (SKIPPED, with reason)
 
-**Note for reviewer:** steps #4 and #2 are both committed-worthy as one
-"duplication" unit or split; all live in the working tree now, uncommitted since
-`b2be8fc`.
+Decided **not** to extract. After #4 landed, the shared core shrank to the
+2-line `Authorization` + `X-Entity-Id` pair across only **two** viable sites
+(`api.ts` `apiFetch` and `fetchAttachmentDownloadJson`) — both now run after
+`requireAuthenticatedSession()`, so `auth` is non-null there. The third site
+(the cross-origin `authHeaders` closure) was always out of scope: it tolerates a
+missing token and must omit auth to avoid breaking presigned URLs / CORS. The
+two hook sites (`moduleClaims`, `useUserRole`) use a plain-object header literal,
+not a `Headers` instance — converting them would add more glue than it removes.
+Extracting 2 lines behind a function call is indirection without payoff, so it
+was left alone. (User approved skip.)
+
+### Step 5 — duplication #1: API_BASE constant (DONE, verified green)
+
+Cross-subfolder change (`lib/`, `app/`, `components/`).
+
+- New `lib/apiBase.ts` exports `API_BASE`
+  (`process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000"`,
+  byte-identical to the 7 originals).
+- Replaced the local `const API_BASE = …` in all 7 files with an import
+  (`./apiBase` in `lib/`, `@/lib/apiBase` in `app/` + `components/`, matching
+  each area's existing import convention). The identifier stays `API_BASE`, so
+  no downstream usage changed.
+- `NEXT_PUBLIC_*` is build-time-inlined, so centralising the read doesn't change
+  resolution semantics — every site still resolves the same value at build.
+- **Whole-folder `tsc` check run** (brief's F821 analogue for cross-subfolder
+  edits): exit 0, identical to baseline. Confirmed zero `const API_BASE`
+  declarations remain and all 7 consumers import it.
+- **Verify:** tsc identical (0). Build 0. Lint identical to baseline **ignoring
+  line/col** — deltas are pure position shifts from removing the 2-line const in
+  three files (frozen pre-existing errors in `app/module-selection/page.tsx`,
+  `app/page.tsx`, `lib/useUserRole.ts` moved up 2 lines). No message added or
+  removed. Baseline re-synced.
+
+## Status — `lib/` subfolder COMPLETE
+
+All planned steps done and verified green:
+1. Dead code — removed `openDatePicker.ts` (`b2be8fc`).
+2. Duplication #4 (auth guard) + #2 (JWT decode) — `c51c6ef`.
+3. Duplication #3 (headers) — skipped with reason.
+4. Duplication #1 (API_BASE) — in working tree, **uncommitted**.
+
+No formatter/reformatter was run (no black-equivalent applied; ESLint was only
+used as a gate, `--fix` never invoked). `api.ts` is the only near-1000-line file
+(down slightly now) and had logic changes, so no bulk reformat was mixed in.
+
+**Paused for user review + commit of the API_BASE step. `lib/` cleanse is
+otherwise finished.**

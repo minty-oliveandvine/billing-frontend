@@ -6,9 +6,7 @@ import { PaymentRequestView } from "@/components/payment-request";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
 import { fetchXeroStatus, fetchMe } from "@/lib/api";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/apiBase";
 
 const EASY_VIEW_STORAGE_KEY = "payment-request-easy-view";
 

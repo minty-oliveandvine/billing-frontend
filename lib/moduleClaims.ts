@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { decodeJwtPayload, getAuth } from "./auth";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
+import { API_BASE } from "./apiBase";
 
 export type ModuleClaims = {
   /** Petty cash module enabled for the entity carried in the JWT. */

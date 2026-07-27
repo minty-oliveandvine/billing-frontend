@@ -17,6 +17,7 @@ import {
 import { enrichAccountCodeWithOptions } from "@/lib/billFormSelectOptions";
 import { billToDetailedInfo, buildBillUpdatePayload } from "@/lib/paymentRequestBillMap";
 import { BillActionBar } from "./BillActionBar";
+import { useToast } from "@/components/Toast";
 import {
   EasyViewDetailedInformationSkeleton,
   EasyViewDraftBillActionsRow,
@@ -33,13 +34,13 @@ type FieldErrors = Partial<
 
 function validateDraftDetail(d: PaymentRequestDetailedInfoData): FieldErrors | null {
   const errors: FieldErrors = {};
-  if (!d.accountCode.trim()) errors.accountCode = "Please select an account code.";
-  if (!d.contact.trim()) errors.contact = "Supplier is required.";
-  if (!d.invoiceDate.trim()) errors.invoiceDate = "Invoice date is required.";
-  if (!d.dueDate.trim()) errors.dueDate = "Due date is required.";
+  if (!d.accountCode.trim()) errors.accountCode = "We'll need an account code here.";
+  if (!d.contact.trim()) errors.contact = "We'll need a supplier here.";
+  if (!d.invoiceDate.trim()) errors.invoiceDate = "We'll need an invoice date here.";
+  if (!d.dueDate.trim()) errors.dueDate = "We'll need a due date here.";
   const amt = Number.parseFloat((d.amount ?? "").replace(/,/g, ""));
   if (!(d.amount ?? "").trim() || !Number.isFinite(amt) || amt <= 0) {
-    errors.amount = "Enter a valid amount greater than zero.";
+    errors.amount = "That amount doesn't look quite right.";
   }
   return Object.keys(errors).length ? errors : null;
 }
@@ -70,7 +71,7 @@ export function EasyViewDraftDetailBody({
   const [billNoError, setBillNoError] = useState<string | null>(null);
   const [accountCodeError, setAccountCodeError] = useState<string | null>(null);
   const [submitAttemptFieldErrors, setSubmitAttemptFieldErrors] = useState<FieldErrors | null>(null);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const applyEntityBillContacts = useCallback((contacts: EntityBillContact[]) => {
     setEntityBillContacts(dedupeEntityBillContactsForPicker(contacts));
@@ -102,7 +103,6 @@ export function EasyViewDraftDetailBody({
     setLoadErr(null);
     setIsEditing(false);
     setDraft(null);
-    setSaveErr(null);
     setBillNoError(null);
     setAccountCodeError(null);
     setSubmitAttemptFieldErrors(null);
@@ -130,7 +130,7 @@ export function EasyViewDraftDetailBody({
         });
       })
       .catch((e) => {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Failed to load bill.");
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this bill didn't come through. Want to try again?");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -171,14 +171,12 @@ export function EasyViewDraftDetailBody({
       accountCode: enrichAccountCodeWithOptions(base.accountCode, accountOptions),
     });
     setIsEditing(true);
-    setSaveErr(null);
     setBillNoError(null);
     setAccountCodeError(null);
     setSubmitAttemptFieldErrors(null);
   }, [bill, accountOptions]);
 
   const handleCancel = useCallback(async () => {
-    setSaveErr(null);
     setBillNoError(null);
     setAccountCodeError(null);
     setSubmitAttemptFieldErrors(null);
@@ -200,7 +198,6 @@ export function EasyViewDraftDetailBody({
 
   const handleSave = useCallback(async () => {
     if (!bill || !draft) return;
-    setSaveErr(null);
     setBillNoError(null);
     setAccountCodeError(null);
     const fieldErr = validateDraftDetail(draft);
@@ -226,7 +223,10 @@ export function EasyViewDraftDetailBody({
       if (isDuplicateBillReferenceError(e)) {
         setBillNoError(e.message);
       } else {
-        setSaveErr(e instanceof ApiError ? e.message : "Could not save changes.");
+        showToast(
+          e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?",
+          "error",
+        );
       }
     } finally {
       setIsSaving(false);
@@ -251,14 +251,6 @@ export function EasyViewDraftDetailBody({
   if (isEditing && draft) {
     return (
       <div className="w-full min-w-0 max-w-full space-y-4">
-        {saveErr ? (
-          <div
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-            role="alert"
-          >
-            {saveErr}
-          </div>
-        ) : null}
         <EasyViewDraftDetailedInformationEdit
           actions={actions}
           data={draft}
@@ -318,7 +310,7 @@ export function EasyViewReadonlyBillDetailBody({
   const [fullBill, setFullBill] = useState<BillDetail | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [publishErr, setPublishErr] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -326,7 +318,6 @@ export function EasyViewReadonlyBillDetailBody({
     setDetail(null);
     setFullBill(null);
     setLoadErr(null);
-    setPublishErr(null);
     void fetchBill(billId)
       .then((b) => {
         if (cancelled) return;
@@ -337,7 +328,7 @@ export function EasyViewReadonlyBillDetailBody({
       })
       .catch((e) => {
         if (cancelled) return;
-        setLoadErr(e instanceof ApiError ? e.message : "Could not load bill.");
+        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Want to try again?");
         setLoading(false);
       });
     return () => {
@@ -380,7 +371,6 @@ export function EasyViewReadonlyBillDetailBody({
 
   const handlePublishToXero = useCallback(async () => {
     setIsPublishing(true);
-    setPublishErr(null);
     try {
       const updated = await publishBill(billId);
       setFullBill(updated);
@@ -388,7 +378,10 @@ export function EasyViewReadonlyBillDetailBody({
       setDetail({ ...d, accountCode: enrichAccountCodeWithOptions(d.accountCode, []) });
       onBillUpdated?.();
     } catch (e) {
-      setPublishErr(e instanceof ApiError ? e.message : "Failed to publish to Xero.");
+      showToast(
+        e instanceof ApiError ? e.message : "This bill didn't quite make it over to Xero. Want to try again?",
+        "error",
+      );
     } finally {
       setIsPublishing(false);
     }
@@ -430,11 +423,6 @@ export function EasyViewReadonlyBillDetailBody({
               isDraftBill={false}
               voidButtonTrailing
             />
-            {publishErr ? (
-              <p className="mt-2 text-sm text-red-600" role="alert">
-                {publishErr}
-              </p>
-            ) : null}
           </>
         ) : null
       }

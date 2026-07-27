@@ -88,7 +88,7 @@ type ValidatedField =
  */
 function amountLimitError(raw: string): string | null {
   if (amountIntegerDigits(cleanAmountString(raw)) > MAX_AMOUNT_INT_DIGITS) {
-    return `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
+    return `That's a few too many digits - up to ${MAX_AMOUNT_INT_DIGITS} before the decimal point.`;
   }
   return null;
 }
@@ -116,26 +116,26 @@ function validatePaymentRequestForm(values: {
 }): Partial<Record<ValidatedField, string>> {
   const e: Partial<Record<ValidatedField, string>> = {};
   if (isBlankAmount(values.amount)) {
-    e.amount = "Amount is required.";
+    e.amount = "We'll need an amount here.";
   } else if (amountIntegerDigits(cleanAmountString(values.amount)) > MAX_AMOUNT_INT_DIGITS) {
-    e.amount = `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
+    e.amount = `That's a few too many digits - up to ${MAX_AMOUNT_INT_DIGITS} before the decimal point.`;
   } else if (!isPositiveAmount(values.amount)) {
-    e.amount = "Enter an amount greater than zero.";
+    e.amount = "That amount doesn't look quite right.";
   }
   if (!values.contact.trim()) {
-    e.contact = "Supplier is required.";
+    e.contact = "We'll need a supplier here.";
   }
   if (!values.accountCode.trim()) {
-    e.accountCode = "Account code is required.";
+    e.accountCode = "We'll need an account code here.";
   }
   if (!values.invoiceDate.trim()) {
-    e.invoiceDate = "Invoice date is required.";
+    e.invoiceDate = "We'll need an invoice date here.";
   }
   if (!values.dueDate.trim()) {
-    e.dueDate = "Due date is required.";
+    e.dueDate = "We'll need a due date here.";
   }
   if (values.attachmentCount < 1) {
-    e.attachments = "At least one attachment is required.";
+    e.attachments = "We'll need at least one attachment.";
   }
   return e;
 }
@@ -333,7 +333,7 @@ export function PaymentRequestModal({
     if (oversized.length > 0) {
       setFieldErrors((prev) => ({
         ...prev,
-        attachments: `File${oversized.length > 1 ? "s" : ""} exceed the 10MB limit: ${oversized.map((f) => f.name).join(", ")}`,
+        attachments: `${oversized.length > 1 ? "These are" : "This one's"} a bit too big - 10MB is the max: ${oversized.map((f) => f.name).join(", ")}`,
       }));
       e.target.value = "";
       return;
@@ -344,7 +344,7 @@ export function PaymentRequestModal({
     if (disallowed.length > 0) {
       setFieldErrors((prev) => ({
         ...prev,
-        attachments: `File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML, Excel): ${disallowed.map((f) => f.name).join(", ")}`,
+        attachments: `I can't open ${disallowed.length > 1 ? "these" : "this one"} - try PDF, JPEG, PNG, HTML, or Excel: ${disallowed.map((f) => f.name).join(", ")}`,
       }));
       e.target.value = "";
       return;
@@ -450,7 +450,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "Failed to save draft. Please try again.",
+          err instanceof Error ? err.message : "That draft didn't quite save. Want to give it another go?",
         );
       }
     } finally {
@@ -535,7 +535,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "Failed to create bill. Please try again.",
+          err instanceof Error ? err.message : "That bill didn't quite go through. Want to try again?",
         );
       }
     } finally {

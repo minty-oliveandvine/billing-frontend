@@ -18,6 +18,7 @@ import {
   normalizeBillStatusKey,
 } from "@/lib/billStatusRollback";
 import { DateTextField } from "@/components/DateTextField";
+import { useToast } from "@/components/Toast";
 import { useUserRole } from "@/lib/useUserRole";
 import { PaymentDeleteConfirmModal } from "./PaymentDeleteConfirmModal";
 import { BankSlipDetailsModal, type BankSlipDetails } from "./BankSlipDetailsModal";
@@ -130,7 +131,10 @@ export function RecordPaymentModal({
   const paymentsLoadGenerationRef = useRef(0);
   const [draftDate, setDraftDate] = useState(todayISO);
   const [draftAmount, setDraftAmount] = useState("");
+  /** Inline validation shown next to the payment form. Action failures
+   *  (save/delete) surface as toasts instead. */
   const [formError, setFormError] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [adding, setAdding] = useState(false);
   const [finalizingPending, setFinalizingPending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -327,7 +331,10 @@ export function RecordPaymentModal({
         onPaymentSaved?.();
       } catch (err) {
         if (!cancelled) {
-          setFormError(err instanceof Error ? err.message : "Failed to update payments.");
+          showToast(
+            err instanceof Error ? err.message : "Those payments didn't quite update. Want to give it another go?",
+            "error",
+          );
         }
       } finally {
         if (!cancelled) setFinalizingPending(false);
@@ -336,29 +343,29 @@ export function RecordPaymentModal({
     return () => {
       cancelled = true;
     };
-  }, [open, readOnly, billId, pendingIdsKey, bankSlipRequiredForPending, loadPayments, onPaymentSaved]);
+  }, [open, readOnly, billId, pendingIdsKey, bankSlipRequiredForPending, loadPayments, onPaymentSaved, showToast]);
 
   const handleAddPayment = async () => {
     setFormError(null);
     if (payMode === "full" && fullPayLocked) {
       setFormError(
         billIsPartiallyPaid
-          ? "This bill is partially paid. Use Partial Pay for additional amounts."
-          : "Use Partial Pay when a payment is already recorded against this invoice.",
+          ? "This bill's partially paid already - Partial Pay will handle anything extra."
+          : "There's already a payment on this invoice, so Partial Pay is the one you want.",
       );
       return;
     }
     const amount = payMode === "full" ? remaining : parseAmount(draftAmount);
     if (amount === null || amount <= 0) {
-      setFormError("Enter a valid amount.");
+      setFormError("Hmm, that amount doesn't look quite right.");
       return;
     }
     if (amount > remaining + 1e-9) {
-      setFormError(`Amount cannot exceed ${formatMoney(remaining, currencyLabel)}.`);
+      setFormError(`That's a bit more than what's left - ${formatMoney(remaining, currencyLabel)} is the max.`);
       return;
     }
     if (!draftDate.trim()) {
-      setFormError("Payment date is required.");
+      setFormError("We'll need a payment date here.");
       return;
     }
 
@@ -374,7 +381,10 @@ export function RecordPaymentModal({
       onPaymentSaved?.();
       if (payMode === "partial") setDraftAmount("");
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to add payment.");
+      showToast(
+        err instanceof Error ? err.message : "That payment didn't quite go through. Want to try again?",
+        "error",
+      );
     } finally {
       setAdding(false);
     }
@@ -414,7 +424,10 @@ export function RecordPaymentModal({
 
       onPaymentSaved?.();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to delete payment.");
+      showToast(
+        err instanceof Error ? err.message : "That payment's being a bit stubborn - want to try again?",
+        "error",
+      );
     } finally {
       setDeletingId(null);
     }
@@ -530,8 +543,8 @@ export function RecordPaymentModal({
                 title={
                   fullPayLocked
                     ? billIsPartiallyPaid
-                      ? "Full Pay is not available while the bill status is Partially Paid. Use Partial Pay for the remaining balance."
-                      : "Full Pay is only available before any partial payment is recorded. Use Partial Pay for the remaining balance."
+                      ? "Full Pay isn't available once a bill's Partially Paid - Partial Pay will cover the rest."
+                      : "Full Pay only works before any partial payment is recorded - Partial Pay will cover the rest."
                     : undefined
                 }
                 onClick={() => {

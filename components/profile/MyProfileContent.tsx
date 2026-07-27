@@ -68,7 +68,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
       setProfile(me);
     } catch (e) {
       setProfile(null);
-      setError(e instanceof ApiError ? e.message : "Could not load profile.");
+      setError(e instanceof ApiError ? e.message : "Hmm, your profile didn't come through. Want to give it another go?");
     } finally {
       setLoading(false);
     }
@@ -99,7 +99,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
 
   const handleSaveProfile = async () => {
     if (!profile?.email) {
-      setSaveError("Email is required");
+      setSaveError("We'll need an email here.");
       return;
     }
 
@@ -118,7 +118,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
       setUpdateHint(true);
       window.setTimeout(() => setUpdateHint(false), 2500);
     } catch (e) {
-      setSaveError(e instanceof ApiError ? e.message : "Failed to update profile");
+      setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?");
     } finally {
       setSaving(false);
     }

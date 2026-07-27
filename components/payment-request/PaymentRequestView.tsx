@@ -33,6 +33,7 @@ import { fetchBillBankSlipEnrichment } from "@/lib/bankSlipEnrichment";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
 import { getAuth } from "@/lib/auth";
 import { useUserRole } from "@/lib/useUserRole";
+import { useToast } from "@/components/Toast";
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -145,7 +146,10 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
   const [rawBills, setRawBills] = useState<BillListItem[]>([]);
   const [bills, setBills] = useState<PaymentRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  /** Blocking load failure — replaces the table with a retry prompt. Action
+   *  failures (delete/publish) surface as toasts instead. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [recordPaymentTarget, setRecordPaymentTarget] = useState<{ billId: string; readOnly: boolean } | null>(null);
   const [easyViewPayBillId, setEasyViewPayBillId] = useState<string | null>(null);
   const [easyViewPayReadOnly, setEasyViewPayReadOnly] = useState(false);
@@ -223,7 +227,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
   const loadBills = useCallback(async () => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       // Only push status to the server when exactly one is selected. For 0 or 2+
       // we omit the param and let the client-side filter narrow the rows.
@@ -275,7 +279,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setBills(enriched);
     } catch (err) {
       if (seq === loadSeqRef.current) {
-        setError(err instanceof Error ? err.message : "Failed to load bills");
+        setLoadError(err instanceof Error ? err.message : "Hmm, your bills didn't come through. Want to give it another go?");
       }
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
@@ -420,7 +424,6 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
 
   const executeBulkDelete = useCallback(async () => {
     if (selectedBillIds.length < 2) return;
-    setError(null);
     setBulkDeletePending(true);
     try {
       await Promise.all(selectedBillIds.map((id) => deleteBill(id)));
@@ -429,23 +432,28 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       tableRef.current?.clearSelection();
       setBulkDeleteModalOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete bills");
+      showToast(
+        err instanceof Error ? err.message : "Those bills are being a bit stubborn - want to try again?",
+        "error",
+      );
     } finally {
       setBulkDeletePending(false);
     }
-  }, [selectedBillIds, loadBills, removeBillsLocally]);
+  }, [selectedBillIds, loadBills, removeBillsLocally, showToast]);
 
   const runBulkPublishSelected = useCallback(async () => {
     if (selectedBillIds.length < 2) return;
-    setError(null);
     try {
       await Promise.all(selectedBillIds.map((id) => publishBill(id)));
       await loadBills();
       tableRef.current?.clearSelection();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to publish bills");
+      showToast(
+        err instanceof Error ? err.message : "Those bills didn't quite make it over. Want to try again?",
+        "error",
+      );
     }
-  }, [selectedBillIds, loadBills]);
+  }, [selectedBillIds, loadBills, showToast]);
 
   return (
     <>
@@ -493,9 +501,9 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         className="mx-auto flex min-h-0 min-w-0 w-full max-w-[1920px] flex-1 flex-col overflow-x-hidden pt-2 sm:pt-3"
         data-easy-view={easyView ? "true" : undefined}
       >
-        {error ? (
+        {loadError ? (
           <div className="px-4 py-8 text-center sm:px-6">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600">{loadError}</p>
             <button type="button" onClick={loadBills} className="mt-2 text-sm font-medium text-secondary hover:underline">
               Retry
             </button>
@@ -578,7 +586,10 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     removeBillsLocally([rowId]);
                     await loadBills();
                   } catch (err) {
-                    setError(err instanceof Error ? err.message : "Failed to delete bill");
+                    showToast(
+                      err instanceof Error ? err.message : "This bill's being a bit stubborn - want to try again?",
+                      "error",
+                    );
                     await loadBills();
                     throw err;
                   }
@@ -588,7 +599,10 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     await publishBill(rowId);
                     await loadBills();
                   } catch (err) {
-                    setError(err instanceof Error ? err.message : "Failed to publish bill");
+                    showToast(
+                      err instanceof Error ? err.message : "This bill didn't quite make it over. Want to try again?",
+                      "error",
+                    );
                   }
                 }}
                 onBankSlipUploaded={loadBills}
@@ -640,7 +654,6 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         onConfirm={async () => {
           if (!easyViewDraftBillId) return;
           const row = bills.find((r) => r.id === easyViewDraftBillId);
-          setError(null);
           setEasyViewDraftDeletePending(true);
           try {
             if (row?.status === "Draft") {
@@ -655,7 +668,10 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
             setEasyViewDraftBillId(null);
             await loadBills();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Could not complete this action");
+            showToast(
+              err instanceof Error ? err.message : "That didn't quite work - want to give it another go?",
+              "error",
+            );
           } finally {
             setEasyViewDraftDeletePending(false);
           }

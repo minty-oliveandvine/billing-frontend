@@ -32,6 +32,35 @@ export function isDuplicateBillReferenceError(err: unknown): err is ApiError {
   );
 }
 
+/**
+ * Friendly copy for statuses where the server's own wording is unhelpful or
+ * absent. Raw `statusText` ("Bad Gateway", "Internal Server Error") used to
+ * reach users verbatim; these stand in instead.
+ *
+ * 422 is deliberately absent — its body carries the field-level validation
+ * detail callers surface inline (see `isDuplicateBillReferenceError`), so its
+ * message must pass through untouched.
+ */
+const STATUS_FALLBACK_MESSAGES: Record<number, string> = {
+  403: "You don't have access to this one.",
+  404: "We couldn't find that one. It may have been removed.",
+  408: "That took too long to come back. Want to try again?",
+  409: "Someone else changed this while you were working. Refresh and try again?",
+  429: "That's a lot at once - give it a moment and try again.",
+  500: "Something went wrong on our end. Want to try again?",
+  502: "We couldn't reach the server. Want to try again?",
+  503: "The server's unavailable right now. Want to try again in a moment?",
+  504: "The server took too long to respond. Want to try again?",
+};
+
+/**
+ * True when `detail` is a bare HTTP reason phrase rather than real copy — i.e.
+ * `res.statusText` fell through as the fallback and should not reach a user.
+ */
+function isRawStatusText(message: string, statusText: string): boolean {
+  return message === statusText || message === "";
+}
+
 function normalizeApiErrorDetail(detail: unknown, fallback: string): string {
   if (detail == null || detail === "") return fallback;
   if (typeof detail === "string") return detail;
@@ -41,6 +70,24 @@ function normalizeApiErrorDetail(detail: unknown, fallback: string): string {
       .join("; ");
   }
   return String(detail);
+}
+
+/**
+ * Resolve the user-facing message for a failed response: the server's own
+ * `detail`/`message` when it says something useful, otherwise friendly copy
+ * for the status. Falls back to a generic line so no HTTP reason phrase leaks.
+ */
+function resolveApiErrorMessage(
+  status: number,
+  detail: unknown,
+  statusText: string,
+): string {
+  const raw = normalizeApiErrorDetail(detail, statusText).trim();
+  if (raw && !isRawStatusText(raw, statusText)) return raw;
+  return (
+    STATUS_FALLBACK_MESSAGES[status] ??
+    "Something went wrong. Want to try again?"
+  );
 }
 
 /**
@@ -54,14 +101,14 @@ async function requireAuthenticatedSession(): Promise<AuthInfo> {
     const refreshed = await refreshToken();
     if (!refreshed && isTokenExpired()) {
       redirectToLogin();
-      throw new ApiError(401, "Session expired. Redirecting to login.");
+      throw new ApiError(401, "Your session timed out - taking you back to login.");
     }
   }
 
   const auth = getAuth();
   if (!auth?.token) {
     redirectToLogin();
-    throw new ApiError(401, "Not authenticated");
+    throw new ApiError(401, "You're signed out - taking you back to login.");
   }
   return auth;
 }
@@ -84,10 +131,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     if (res.status === 401) {
       redirectToLogin();
-      throw new ApiError(401, "Session expired. Redirecting to login.");
+      throw new ApiError(401, "Your session timed out - taking you back to login.");
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    const msg = normalizeApiErrorDetail(
+    const msg = resolveApiErrorMessage(
+      res.status,
       body.detail ?? body.message,
       res.statusText,
     );
@@ -171,7 +219,7 @@ async function fetchAttachmentDownloadJson(path: string): Promise<{
   if (!res.ok) {
     if (res.status === 401) {
       redirectToLogin();
-      throw new ApiError(401, "Session expired. Redirecting to login.");
+      throw new ApiError(401, "Your session timed out - taking you back to login.");
     }
     return null;
   }
@@ -280,7 +328,7 @@ export async function fetchPaymentAttachmentPreview(
       }
       const bytes = await fetchBytesFromResolvedFileUrl(absolute);
       if (!bytes || bytes.size === 0) {
-        lastError = new ApiError(404, "Empty file from storage URL");
+        lastError = new ApiError(404, "That attachment came back empty. Want to try again?");
         continue;
       }
       const t = (bytes.type || "").toLowerCase();
@@ -301,7 +349,7 @@ export async function fetchPaymentAttachmentPreview(
   }
 
   if (lastError instanceof Error) throw lastError;
-  throw new ApiError(404, "Could not download attachment");
+  throw new ApiError(404, "That attachment didn't come through. Want to try again?");
 }
 
 // ── Types ────────────────────────────────────────────────────────────

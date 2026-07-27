@@ -203,7 +203,7 @@ export function BillActionBar({
           type="button"
           onClick={isPublished || publishDisabled ? undefined : onPublishToXero}
           disabled={isPublished || publishPending || publishDisabled}
-          title={publishDisabled ? "Cannot publish a voided bill" : undefined}
+          title={publishDisabled ? "This bill's been voided, so there's nothing to publish." : undefined}
           className={
             "inline-flex h-10 min-h-[44px] w-auto max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:gap-2 sm:px-4 " +
             (isPublished

@@ -362,8 +362,54 @@ wrappers; scaffold now lives once in `ConfirmDialog.tsx` (~150 LOC).
 - MOD  `components/payment-request/{Bulk,Payment,Row,Attachment}DeleteConfirmModal.tsx`
 - MOD  `CODE_CLEANSE_NOTES.md`
 
-Next candidate slices (not started): the larger single-purpose modals that share
-the same scaffold (`OverpaymentWarningModal`, `UploadInvoiceAttachmentModal`,
-`RecordPaymentModal`, `BankSlipDetailsModal`) could also adopt `ConfirmDialog`
-or a more general `Modal` primitive — but several are 200–980 LOC, so each needs
-its own diff + report before touching.
+Committed by user as `e9ea1a0`
+("components: extract shared ConfirmDialog for delete-confirm modals").
+
+## Slice 2 — larger modals: DELIBERATELY LEFT ALONE (with reasons)
+
+Investigated `OverpaymentWarningModal` (201), `UploadInvoiceAttachmentModal`
+(271), `RecordPaymentModal` (907), `BankSlipDetailsModal` (984) for adopting
+`ConfirmDialog` / a general `Modal`. Decision (user-approved): **stop here.**
+
+Why these are NOT the same as the confirm-modal duplication:
+
+- **The big three are stateful form panels, not confirm dialogs.**
+  `useState` count 6 / 15 / 13; they contain form inputs; they use
+  `role="dialog"` (NOT `alertdialog`); widths differ (480–520px). They share
+  only the outermost ~8 lines of scaffold (portal + overlay + scroll-lock),
+  which is smaller than the glue a general primitive would need — the same
+  below-threshold call made for `lib/` #3.
+- **`OverpaymentWarningModal` is the closest**, but adopting `ConfirmDialog`
+  would require new props (`maxWidth`, a title-icon slot, rich `children`) AND
+  it has *real* differences that must not be silently normalised:
+    - shell width `max-w-[440px]` vs `ConfirmDialog`'s hardcoded `max-w-[400px]`
+      (40px visual difference);
+    - its primary button uses `transition-opacity duration-200 ease-out
+      hover:opacity-80`, whereas `ConfirmDialog`'s primary uses
+      `transition-opacity hover:opacity-90` (different easing + hover opacity);
+    - body is title-with-icon + scrollable payment list + second paragraph, not
+      a single description.
+  Merging would mean generalising `ConfirmDialog` into a broad `Modal` with
+  header/body/footer slots + configurable width/role/button styles — a design
+  decision with drift risk across ~12 call sites that cannot be visually
+  verified in this environment. Out of scope for a mechanical cleanse.
+
+**Rule applied:** "never merge functions that only look similar; if they
+genuinely differ, preserve both." Here they genuinely differ, and the honest
+call is to leave them rather than bend a confirm-dialog primitive to fit form
+panels.
+
+## Status — `components/` cleanse COMPLETE (for this pass)
+
+Done + committed:
+- Slice 1: `ConfirmDialog` extracted, 4 confirm modals deduped (`e9ea1a0`).
+
+Deliberately left alone (documented above):
+- The 4 larger form/warning modals — genuinely different, not duplication.
+- 0 dead exports in `components/` (nothing to remove).
+- No reformatter run (ESLint gate-only, `--fix` never used); the 900+ LOC files
+  were never bulk-reformatted.
+
+If a future pass wants to go further, the only real candidate is a general
+`Modal` primitive (slice-2 "generalize" option) — treat as a design task with
+visual review, not a mechanical dedupe.

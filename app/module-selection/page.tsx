@@ -7,10 +7,9 @@ import { ModuleButton } from "@/components/ModuleButton";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { getAuth, setAuth } from "@/lib/auth";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
+import { API_BASE } from "@/lib/apiBase";
 
 const MIN_LOADING_MS = 800;
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {

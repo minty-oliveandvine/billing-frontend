@@ -1,4 +1,5 @@
 import {
+  type AuthInfo,
   getAuth,
   getEmailFromToken,
   isTokenExpired,
@@ -8,9 +9,7 @@ import {
 } from "./auth";
 import { compressImage } from "./compressImage";
 import { findEmailAddressInJson } from "./extractEmail";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
+import { API_BASE } from "./apiBase";
 
 //  ── Error ────────────────────────────────────────────────────────────
 
@@ -44,9 +43,13 @@ function normalizeApiErrorDetail(detail: unknown, fallback: string): string {
   return String(detail);
 }
 
-// ── Core fetch wrapper ───────────────────────────────────────────────
-
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+/**
+ * Refresh the token if it's close to expiring, then require an authenticated
+ * session. Redirects to login and throws `ApiError(401)` when the token is
+ * expired-and-unrefreshable or absent. Returns the validated `AuthInfo` so
+ * callers don't re-read it.
+ */
+async function requireAuthenticatedSession(): Promise<AuthInfo> {
   if (isTokenExpiringSoon(120)) {
     const refreshed = await refreshToken();
     if (!refreshed && isTokenExpired()) {
@@ -60,6 +63,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     redirectToLogin();
     throw new ApiError(401, "Not authenticated");
   }
+  return auth;
+}
+
+// ── Core fetch wrapper ───────────────────────────────────────────────
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const auth = await requireAuthenticatedSession();
 
   const headers = new Headers(options.headers);
   headers.set("Authorization", `Bearer ${auth.token}`);
@@ -149,19 +159,7 @@ async function fetchAttachmentDownloadJson(path: string): Promise<{
   mime_type?: string;
   file_size?: number;
 } | null> {
-  if (isTokenExpiringSoon(120)) {
-    const refreshed = await refreshToken();
-    if (!refreshed && isTokenExpired()) {
-      redirectToLogin();
-      throw new ApiError(401, "Session expired. Redirecting to login.");
-    }
-  }
-
-  const auth = getAuth();
-  if (!auth?.token) {
-    redirectToLogin();
-    throw new ApiError(401, "Not authenticated");
-  }
+  const auth = await requireAuthenticatedSession();
 
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${auth.token}`);

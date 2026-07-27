@@ -73,7 +73,7 @@ export function AccountCodeSettings() {
       setSavedIds(new Set(selectedIds));
       showToast("Bill settings updated successfully", "success");
     } catch {
-      showToast("Failed to save some changes. Please try again.", "error");
+      showToast("Hmm, some of those changes didn't save. Want to give it another go?", "error");
     } finally {
       setSaving(false);
     }

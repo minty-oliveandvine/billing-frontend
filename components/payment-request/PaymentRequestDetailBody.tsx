@@ -61,6 +61,7 @@ import {
   type PaymentRequestDetailedInfoData,
 } from "./PaymentRequestDetailedInfo";
 import { recordPaymentDetailButtonClass, returnPaymentRequestButtonClass } from "./paymentRequestButtonClasses";
+import { useToast } from "@/components/Toast";
 export type PaymentRequestDetailBodyProps = {
   /** Called after the bill is refreshed from the server so the header status badge can update. */
   onBillUpdated?: () => void;
@@ -72,15 +73,15 @@ type DetailSubmitFieldErrors = Partial<
 
 function validateDetailRequiredForSubmit(d: PaymentRequestDetailedInfoData): DetailSubmitFieldErrors | null {
   const errors: DetailSubmitFieldErrors = {};
-  if (!d.accountCode.trim()) errors.accountCode = "Please select an account code.";
-  if (!d.contact.trim()) errors.contact = "Supplier is required.";
-  if (!d.invoiceDate.trim()) errors.invoiceDate = "Invoice date is required.";
-  if (!d.dueDate.trim()) errors.dueDate = "Due date is required.";
+  if (!d.accountCode.trim()) errors.accountCode = "We'll need an account code here.";
+  if (!d.contact.trim()) errors.contact = "We'll need a supplier here.";
+  if (!d.invoiceDate.trim()) errors.invoiceDate = "We'll need an invoice date here.";
+  if (!d.dueDate.trim()) errors.dueDate = "We'll need a due date here.";
   const amt = parseAmount(d.amount);
   if (amt === null || amt <= 0) {
-    errors.amount = "Enter a valid amount greater than zero.";
+    errors.amount = "That amount doesn't look quite right.";
   } else if (!isWithinAmountLimits(d.amount ?? "")) {
-    errors.amount = `You can only enter up to ${MAX_AMOUNT_INT_DIGITS} digits before the decimal point.`;
+    errors.amount = `That's a few too many digits - up to ${MAX_AMOUNT_INT_DIGITS} before the decimal point.`;
   }
   return Object.keys(errors).length ? errors : null;
 }
@@ -209,7 +210,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmittingDraft, setIsSubmittingDraft] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [billNoError, setBillNoError] = useState<string | null>(null);
   const [accountCodeError, setAccountCodeError] = useState<string | null>(null);
   const [submitAttemptFieldErrors, setSubmitAttemptFieldErrors] = useState<DetailSubmitFieldErrors | null>(null);
@@ -393,7 +394,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       .catch((e) => {
         if (!cancelled) {
           setBill(null);
-          setLoadError(e instanceof ApiError ? e.message : "Failed to load bill.");
+          setLoadError(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Want to try again?");
           attachmentUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
           attachmentUrlsRef.current = [];
           setAttachments([]);
@@ -587,14 +588,12 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       accountCode: enrichAccountCodeWithOptions(base.accountCode, accountOptions),
     });
     setIsEditing(true);
-    setActionError(null);
     setBillNoError(null);
     setAccountCodeError(null);
     setSubmitAttemptFieldErrors(null);
   }, [bill, accountOptions]);
 
   const handleCancel = useCallback(() => {
-    setActionError(null);
     setBillNoError(null);
     setAccountCodeError(null);
     setSubmitAttemptFieldErrors(null);
@@ -722,8 +721,10 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
             await replaceAttachmentBlobsFromPreviewItems(requestId, blobsForIndexedDb);
           } catch {
             await loadAttachmentsFromIndexedDb();
-            setActionError(
-              "Saved bill details but could not update stored invoice attachments. Try editing attachments again.",
+            // Details saved; only the attachment cache write failed.
+            showToast(
+              "Your bill details are saved, but the attachments didn't quite update. Want to try editing them again?",
+              "warning",
             );
           }
         }
@@ -752,7 +753,10 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         if (isDuplicateBillReferenceError(e)) {
           setBillNoError(e.message);
         } else {
-          setActionError(e instanceof ApiError ? e.message : "Could not save changes.");
+          showToast(
+            e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?",
+            "error",
+          );
         }
       } finally {
         setIsSaving(false);
@@ -769,12 +773,12 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       onBillUpdated,
       commitPendingAttachmentDeletes,
       mapServerAttachmentsToPreviewItems,
+      showToast,
     ],
   );
 
   const handleSave = useCallback(async () => {
     if (!requestId || !bill || !draft) return;
-    setActionError(null);
     setBillNoError(null);
     setAccountCodeError(null);
 
@@ -824,7 +828,6 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
   const executeDeleteBill = useCallback(async () => {
     if (!requestId) return;
     setIsDeleting(true);
-    setActionError(null);
     pendingBillAttachmentDeletesRef.current.clear();
     attachmentsRef.current.forEach((a) => {
       if (a.pendingUploadKey && a.url.startsWith("blob:")) URL.revokeObjectURL(a.url);
@@ -842,17 +845,19 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       await loadPayments();
       bumpAudit();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "Could not delete bill.");
+      showToast(
+        e instanceof ApiError ? e.message : "This bill's being a bit stubborn - want to try again?",
+        "error",
+      );
     } finally {
       setIsDeleting(false);
     }
-  }, [requestId, bill, reloadBill, bumpAudit, loadPayments]);
+  }, [requestId, bill, reloadBill, bumpAudit, loadPayments, showToast]);
 
   const handleSubmitDraft = useCallback(async () => {
     if (!requestId || !bill) return;
     const info = isEditing && draft ? draft : viewData;
     if (!info) return;
-    setActionError(null);
     setBillNoError(null);
     setAccountCodeError(null);
 
@@ -925,8 +930,10 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           await replaceAttachmentBlobsFromPreviewItems(requestId, blobsForIndexedDb);
         } catch {
           await loadAttachmentsFromIndexedDb();
-          setActionError(
-            "Bill was submitted but could not update stored invoice attachments. Try editing attachments again.",
+          // Submit succeeded; only the attachment cache write failed.
+          showToast(
+            "Your bill went through, but the attachments didn't quite update. Want to try editing them again?",
+            "warning",
           );
         }
       }
@@ -952,11 +959,14 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       if (isDuplicateBillReferenceError(e)) {
+        // Surfaced inline under Bill No. — a toast would just repeat it.
         setBillNoError(e.message);
-        setActionError(e.message);
         setSubmitAttemptFieldErrors(null);
       } else {
-        setActionError(e instanceof ApiError ? e.message : "Could not submit this bill.");
+        showToast(
+          e instanceof ApiError ? e.message : "This bill didn't quite make it through. Want to give it another go?",
+          "error",
+        );
       }
     } finally {
       setIsSubmittingDraft(false);
@@ -978,11 +988,11 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
     onBillUpdated,
     commitPendingAttachmentDeletes,
     mapServerAttachmentsToPreviewItems,
+    showToast,
   ]);
 
   const handlePublishToXero = useCallback(async () => {
     if (!requestId || !bill || isPublishing) return;
-    setActionError(null);
     setIsPublishing(true);
     try {
       const updated = await publishBill(requestId);
@@ -990,15 +1000,17 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       onBillUpdated?.();
       bumpAudit();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "Failed to publish to Xero.");
+      showToast(
+        e instanceof ApiError ? e.message : "This bill didn't quite make it over to Xero. Want to try again?",
+        "error",
+      );
     } finally {
       setIsPublishing(false);
     }
-  }, [requestId, bill, isPublishing, bumpAudit, onBillUpdated]);
+  }, [requestId, bill, isPublishing, bumpAudit, onBillUpdated, showToast]);
 
   const handleReturn = useCallback(async () => {
     if (!requestId || !bill || isReturning) return;
-    setActionError(null);
     setIsReturning(true);
     try {
       const updated = await returnBillApi(requestId, "payment_requested");
@@ -1006,11 +1018,14 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       onBillUpdated?.();
       bumpAudit();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "Could not return this payment request.");
+      showToast(
+        e instanceof ApiError ? e.message : "That didn't quite work - want to try sending it back again?",
+        "error",
+      );
     } finally {
       setIsReturning(false);
     }
-  }, [requestId, bill, isReturning, bumpAudit, onBillUpdated]);
+  }, [requestId, bill, isReturning, bumpAudit, onBillUpdated, showToast]);
 
   // Always the entity's selected currency (entities.currency_id -> iso_code).
   const currencyLabel = entityCurrency;
@@ -1155,12 +1170,6 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
 
   return (
     <>
-      {actionError ? (
-        <div className="mx-auto mb-3 max-w-[1920px] px-4 text-sm text-rose-700 sm:px-6 lg:px-8" role="alert">
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">{actionError}</div>
-        </div>
-      ) : null}
-
       <div className="mx-auto grid w-full min-w-0 max-w-[1920px] grid-cols-1 gap-4 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-1 sm:gap-5 sm:px-6 lg:grid-cols-2 lg:grid-rows-[auto_minmax(20rem,1fr)] lg:gap-x-6 lg:gap-y-4 lg:px-8 xl:gap-x-8 2xl:gap-x-10">
         <div className="min-w-0 max-lg:order-2 lg:order-none lg:col-start-1 lg:row-start-1">
           <InvoiceAttachmentToolbar

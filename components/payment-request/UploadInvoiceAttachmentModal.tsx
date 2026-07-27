@@ -82,13 +82,13 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
     const oversized = Array.from(list).filter((file) => file.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
-      setUploadError(`File${oversized.length > 1 ? "s" : ""} exceed the 10MB limit: ${oversized.map((f) => f.name).join(", ")}`);
+      setUploadError(`${oversized.length > 1 ? "These are" : "This one's"} a bit too big - 10MB is the max: ${oversized.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
     const disallowed = Array.from(list).filter((file) => !isAllowedAttachment(file));
     if (disallowed.length > 0) {
-      setUploadError(`File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML): ${disallowed.map((f) => f.name).join(", ")}`);
+      setUploadError(`I can't open ${disallowed.length > 1 ? "these" : "this one"} - try PDF, JPEG, PNG, or HTML: ${disallowed.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
@@ -111,7 +111,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
 
   const handleUploadClick = async () => {
     if (uploadedFiles.length === 0) {
-      setUploadError("Select at least one attachment.");
+      setUploadError("Pick at least one attachment to upload.");
       return;
     }
     if (uploading) return;
@@ -121,7 +121,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
       await Promise.resolve(onUpload(uploadedFiles.map((x) => x.file)));
       onClose();
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed. Please try again.");
+      setUploadError(e instanceof Error ? e.message : "That upload didn't quite go through. Want to try again?");
     } finally {
       setUploading(false);
     }

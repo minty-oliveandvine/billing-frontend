@@ -619,13 +619,13 @@ export function BankSlipDetailsModal({
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
     const oversized = Array.from(list).filter((file) => file.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
-      setUploadError(`File${oversized.length > 1 ? "s" : ""} exceed the 10MB limit: ${oversized.map((f) => f.name).join(", ")}`);
+      setUploadError(`${oversized.length > 1 ? "These are" : "This one's"} a bit too big - 10MB is the max: ${oversized.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
     const disallowed = Array.from(list).filter((file) => !isAllowedAttachment(file));
     if (disallowed.length > 0) {
-      setUploadError(`File${disallowed.length > 1 ? "s" : ""} not allowed (only PDF, JPEG, PNG, HTML): ${disallowed.map((f) => f.name).join(", ")}`);
+      setUploadError(`I can't open ${disallowed.length > 1 ? "these" : "this one"} - try PDF, JPEG, PNG, or HTML: ${disallowed.map((f) => f.name).join(", ")}`);
       e.target.value = "";
       return;
     }
@@ -650,7 +650,7 @@ export function BankSlipDetailsModal({
 
   const handleCommitInlineUpload = async () => {
     if (!inlineBillId || stagedUploads.length === 0) {
-      setUploadError("Select at least one bank slip file.");
+      setUploadError("Pick at least one bank slip to upload.");
       return;
     }
     setUploadError(null);
@@ -697,7 +697,7 @@ export function BankSlipDetailsModal({
           /* best-effort rollback */
         }
       }
-      setUploadError(e instanceof ApiError ? e.message : "Upload failed. Please try again.");
+      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Want to try again?");
     } finally {
       setUploading(false);
     }
@@ -721,7 +721,7 @@ export function BankSlipDetailsModal({
       if (wasLast) onClose();
     } catch (e) {
       setPendingDeleteFileId(null);
-      setDeleteError(e instanceof ApiError ? e.message : "Could not delete this bank slip. Please try again.");
+      setDeleteError(e instanceof ApiError ? e.message : "This bank slip's being a bit stubborn - want to try again?");
     } finally {
       setDeletePending(false);
     }

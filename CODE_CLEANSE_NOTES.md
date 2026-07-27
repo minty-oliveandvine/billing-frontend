@@ -296,5 +296,74 @@ No formatter/reformatter was run (no black-equivalent applied; ESLint was only
 used as a gate, `--fix` never invoked). `api.ts` is the only near-1000-line file
 (down slightly now) and had logic changes, so no bulk reformat was mixed in.
 
-**Paused for user review + commit of the API_BASE step. `lib/` cleanse is
-otherwise finished.**
+`lib/` cleanse finished; API_BASE committed by user as `b633815`.
+
+---
+
+# Code Cleanse — `components/` (slice 1: payment-request confirm modals)
+
+Same gates (`tsc` + filtered `lint` + `build`), same baseline. Only `api.ts`
+was the >1000-line concern in `lib/`; in `components/` several files exceed 900
+LOC (the reformatter rule still applies — no bulk reformat mixed with logic).
+
+## Load-bearing / dead-code scan for `components/`
+
+- **0 dead exports** across all of `components/` (every exported name is
+  referenced by another file) — so there is no dead-code step for this folder.
+- Duplication signal that motivated the slice: ~13 files hand-roll modal
+  scaffolding (`createPortal` + `fixed inset-0` overlay + Escape `useEffect`).
+  Started with the tightest cluster: the 4 delete/confirm modals.
+
+## Slice 1 — extract `ConfirmDialog` (DONE, verified green)
+
+Created `components/payment-request/ConfirmDialog.tsx` — a presentational parent
+owning the shared scaffold (portal, backdrop overlay, `pushAppScrollLock`,
+Escape-to-close, accessible `alertdialog` wrapper, button row + the 5 shared
+style constants). The 4 modals became thin wrappers passing their own strings:
+
+- `BulkDeleteConfirmModal` (z-300), `RowDeleteConfirmModal` (z-420),
+  `PaymentDeleteConfirmModal` (z-430), `AttachmentDeleteConfirmModal` (z-430).
+- **Public props and every user-facing string unchanged** — verified each
+  file's human phrases are byte-for-byte identical to HEAD (4/4 ✓). Callers
+  untouched.
+
+**Behavioural differences preserved via props (reported before merging, per the
+rules), not merged away:**
+
+- **z-index** differs per modal → `zIndex` prop (each keeps its historical
+  value; `overlayClassFor(zIndex)` rebuilds the exact class string).
+- **Confirm button variant**: red destructive (`danger`, default) vs the
+  secondary-color acknowledge button. The `AttachmentDeleteConfirmModal`
+  `minimumAttachment` case is a single-button acknowledge dialog → modelled as
+  `acknowledgeOnly` (one primary "OK" button, no Cancel/Confirm pair), matching
+  the original exactly.
+- **Backdrop `!pending` guard**: 3 modals + the attachment non-minimum variant
+  guarded backdrop-close with `!pending`; the original `minimumAttachment`
+  branch omitted it. In acknowledge-only mode `pending` is always false, so the
+  unified `&& !pending` guard is behaviourally identical. Documented so it is
+  not mistaken for a silent change.
+- **`onConfirm` call style**: originals for Bulk/Payment/Row used
+  `onClick={onConfirm}`; Attachment used `onClick={() => onConfirm?.()}`. Parent
+  uses the optional-call form uniformly — identical when `onConfirm` is defined,
+  and safe (no-op) when omitted in acknowledge-only mode.
+
+**Verify:** tsc identical to baseline (0). Lint identical — exact match, no
+shifts (none of these files had baseline lint entries). Build exit 0 (also
+confirms all 5 files parse as JSX + type-check). Human-phrase diff vs HEAD: 4/4
+identical.
+
+Net: 4 files went from ~85–155 LOC of mostly-duplicated scaffold to ~30–75 LOC
+wrappers; scaffold now lives once in `ConfirmDialog.tsx` (~150 LOC).
+
+## Status — `components/` slice 1 complete
+
+**Paused for user review + commit.** Working tree (uncommitted):
+- NEW  `components/payment-request/ConfirmDialog.tsx`
+- MOD  `components/payment-request/{Bulk,Payment,Row,Attachment}DeleteConfirmModal.tsx`
+- MOD  `CODE_CLEANSE_NOTES.md`
+
+Next candidate slices (not started): the larger single-purpose modals that share
+the same scaffold (`OverpaymentWarningModal`, `UploadInvoiceAttachmentModal`,
+`RecordPaymentModal`, `BankSlipDetailsModal`) could also adopt `ConfirmDialog`
+or a more general `Modal` primitive — but several are 200–980 LOC, so each needs
+its own diff + report before touching.

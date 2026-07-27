@@ -166,7 +166,39 @@ extraction with no behavioural difference found.
   per the brief.
 - `next.config.ts` pdf.js asset copying — outside `lib/`.
 
+## Progress log
+
+### Step 1 — dead code (DONE, verified green)
+
+- **Deleted `lib/openDatePicker.ts`** (13 LOC, single export `openDatePicker`).
+  - Referenced **nowhere** — the only mention in the whole repo was its own
+    definition. Not imported by any file; never imported in git history.
+  - **Checked it was dead, not a bug:** the helper existed to open the native
+    date picker for `.pr-date-input` fields. Those fields are still styled in
+    `app/globals.css`, but `components/DateTextField.tsx` now opens the picker
+    itself via `dateInputRef.current?.showPicker()` (line 50) with the same
+    fallback-to-`focus()` logic. Its comment (line 29) explicitly states the
+    separate `showPicker()` call "is no longer needed." So the helper was
+    superseded and orphaned — safe delete, no behaviour lost.
+  - **Verify:** `tsc` identical to baseline (0), lint identical (55 for real
+    source), build exit 0. `tsc` re-parse of all files OK.
+
+**Lesson / baseline correction:** the original lint baseline was captured
+*before* `npm run build`, so it predated the generated vendor bundle
+`public/pdfjs/pdf.worker.min.mjs` (copied out of `node_modules` by
+`next.config.ts`, gitignored). Once built, ESLint lints that minified file and
+emits ~1450 messages. This is pre-existing noise unrelated to any cleanse
+change. Fix applied: **all lint diffs filter out `public/pdfjs/`**, and the
+canonical `baseline/lint-summary.txt` was re-saved in filtered form (55 real-
+source messages). Separately worth noting for later: `public/pdfjs/` arguably
+belongs in an ESLint ignore, but that's config work outside `lib/` and out of
+scope here.
+
 ## Status
 
-**Paused before any code change**, awaiting user review of the findings above —
-specifically the three merges that carry behavioural differences (#2, #3).
+Dead-code step for `lib/` complete and verified. Next: duplication, in the
+agreed order — #4 token-refresh guard → #2 JWT decode → #3 narrow header helper
+→ #1 API_BASE across all 7 sites (own commit).
+
+**Paused for user review + commit of the dead-code step before starting the
+duplication merges.**

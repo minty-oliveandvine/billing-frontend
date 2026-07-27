@@ -194,11 +194,64 @@ source messages). Separately worth noting for later: `public/pdfjs/` arguably
 belongs in an ESLint ignore, but that's config work outside `lib/` and out of
 scope here.
 
+### Step 2 — duplication #4: token-refresh guard (DONE, verified green)
+
+- Committed dead-code step as `b2be8fc`.
+- Extracted `requireAuthenticatedSession(): Promise<AuthInfo>` in `lib/api.ts`,
+  replacing the two byte-identical 13-line guard blocks (was `apiFetch` and
+  `fetchAttachmentDownloadJson`).
+  - **No behavioural difference between the two blocks** — confirmed byte-for-
+    byte before merging. Only the guard was hoisted; the header construction
+    *after* the guard differs between the two callers and was left untouched.
+  - The helper returns the validated `AuthInfo`, so callers no longer re-call
+    `getAuth()`. Error strings / redirect calls preserved exactly.
+  - Added `type AuthInfo` to the existing `./auth` import.
+  - **Verify:** tsc identical (0), lint identical (55 real source), build 0.
+
+### Step 3 — duplication #2: JWT decode (DONE, verified green)
+
+Scope grew after a discovery (user approved "converge all 5"): `lib/auth.ts`
+**already had** a canonical `decodeJwtPayload(token)` (used only by
+`getEmailFromToken`), and **five** sites inlined their own copy.
+
+**Behavioural difference found and reported before merging:** the canonical
+`decodeJwtPayload` pads the base64 (`base64 += "=".repeat(4 - pad)`); all five
+inline copies called `atob()` unpadded. On valid JWTs the browser/Node `atob`
+tolerates missing padding, so behaviour is unchanged; the padded variant is
+strictly more correct. Converging standardises on it — an improvement, not a
+risky pick-a-winner.
+
+Changes (each caller keeps its OWN claim reading + defaults; only the
+split/atob/parse lines were replaced with `decodeJwtPayload(auth.token)` +
+`if (!payload) return <that caller's fallback>`):
+
+- `lib/auth.ts`: exported `decodeJwtPayload`; rewrote `getRoleFromToken`,
+  `isTokenExpiringSoon`, `isTokenExpired`. **Kept each function's outer
+  `try/catch`** — `getAuth()` can throw via `decodeURIComponent` on a malformed
+  cookie, and the originals caught that. (`getEmailFromToken` already used the
+  helper and keeps its catch too.) Removing the catch would have been a subtle
+  behaviour narrowing, so it was preserved.
+- `lib/moduleClaims.ts` (`getModuleClaims`): fallback `true`/`true` and per-claim
+  boolean-or-true defaults unchanged.
+- `lib/useUserRole.ts` (`getPermissionClaims`): `empty` fallback and per-claim
+  defaults unchanged.
+
+The inline `parts.length !== 3` guard each caller had is now performed inside
+`decodeJwtPayload` (returns null), and every caller maps null → its fallback, so
+the malformed-token path is preserved exactly.
+
+**Verify:** tsc identical (0). Build 0. Lint: identical to baseline **ignoring
+line/col** — the one frozen pre-existing error
+(`lib/useUserRole.ts react-hooks/set-state-in-effect`) shifted 106→104 because
+2 lines were removed above it. No message added or removed; the pre-existing
+failure is untouched. Baseline line number re-synced to 104.
+
 ## Status
 
-Dead-code step for `lib/` complete and verified. Next: duplication, in the
-agreed order — #4 token-refresh guard → #2 JWT decode → #3 narrow header helper
-→ #1 API_BASE across all 7 sites (own commit).
+Dead-code + duplication #4 + #2 complete and verified. Next: #3 narrow header
+helper (Authorization+X-Entity-Id pair only — NOT the cross-origin `authHeaders`
+closure) → #1 API_BASE across all 7 sites (own commit, cross-subfolder).
 
-**Paused for user review + commit of the dead-code step before starting the
-duplication merges.**
+**Note for reviewer:** steps #4 and #2 are both committed-worthy as one
+"duplication" unit or split; all live in the working tree now, uncommitted since
+`b2be8fc`.

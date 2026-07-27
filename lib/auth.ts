@@ -62,10 +62,8 @@ export function getRoleFromToken(): string | null {
   try {
     const auth = getAuth();
     if (!auth?.token) return null;
-    const parts = auth.token.split(".");
-    if (parts.length !== 3) return null;
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return null;
     if (typeof payload.role !== "string" || !payload.role) return null;
     return payload.role;
   } catch {
@@ -73,7 +71,13 @@ export function getRoleFromToken(): string | null {
   }
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+/**
+ * Neutral JWT-payload decode: splits the token, base64url-decodes and JSON-
+ * parses the payload segment, and returns it as a plain object — or `null` if
+ * the token is missing a payload, malformed, or the payload isn't a JSON
+ * object. Never throws. Callers apply their own claim reading and defaults.
+ */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
@@ -110,10 +114,8 @@ export function isTokenExpiringSoon(thresholdSeconds = 120): boolean {
   try {
     const auth = getAuth();
     if (!auth?.token) return false;
-    const parts = auth.token.split(".");
-    if (parts.length !== 3) return false;
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return false;
     if (typeof payload.exp !== "number") return false;
     return payload.exp - Date.now() / 1000 < thresholdSeconds;
   } catch {
@@ -132,10 +134,8 @@ export function isTokenExpired(): boolean {
   try {
     const auth = getAuth();
     if (!auth?.token) return false;
-    const parts = auth.token.split(".");
-    if (parts.length !== 3) return false;
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return false;
     if (typeof payload.exp !== "number") return false;
     return payload.exp - Date.now() / 1000 < -5;
   } catch {

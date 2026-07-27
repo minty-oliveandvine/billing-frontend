@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuth } from "./auth";
+import { decodeJwtPayload, getAuth } from "./auth";
 
 const ALL_BILL_ROLES = new Set(["cashier", "shop_manager", "accountant", "admin", "super_admin"]);
 const ELEVATED_ROLES = new Set(["accountant", "admin", "super_admin"]);
@@ -34,10 +34,8 @@ function getPermissionClaims(): JwtClaims {
   try {
     const auth = getAuth();
     if (!auth?.token) return empty;
-    const parts = auth.token.split(".");
-    if (parts.length !== 3) return empty;
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return empty;
     return {
       role: typeof payload.role === "string" ? payload.role : "",
       systemRole: typeof payload.system_role === "string" ? payload.system_role : "",

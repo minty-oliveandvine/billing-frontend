@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { getAuth } from "./auth";
+import { decodeJwtPayload, getAuth } from "./auth";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_MODULE2_BACKEND_URL ?? "http://localhost:8000";
@@ -32,10 +32,8 @@ export function getModuleClaims(): ModuleClaims {
   try {
     const auth = getAuth();
     if (!auth?.token) return fallback;
-    const parts = auth.token.split(".");
-    if (parts.length !== 3) return fallback;
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return fallback;
     return {
       pettyCashEnabled:
         typeof payload.petty_cash_enabled === "boolean" ? payload.petty_cash_enabled : true,

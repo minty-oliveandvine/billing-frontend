@@ -450,7 +450,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "That draft didn't quite save. Want to give it another go?",
+          err instanceof Error ? err.message : "That draft didn't quite save. Let's give it another go?",
         );
       }
     } finally {
@@ -535,7 +535,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "That bill didn't quite go through. Want to try again?",
+          err instanceof Error ? err.message : "That bill didn't quite go through. Let's try again?",
         );
       }
     } finally {
@@ -566,7 +566,7 @@ export function PaymentRequestModal({
               ) : previewFile && !previewObjectUrl ? (
                 <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">Loading preview…</div>
               ) : (
-                <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">Select a file to preview</div>
+                <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">Pick a file and I&apos;ll show it here.</div>
               )}
             </div>
 
@@ -597,7 +597,7 @@ export function PaymentRequestModal({
           </ul>
 
           <div className="relative">
-            <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={BILL_ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose files to upload" />
+            <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={BILL_ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose files to attach" />
             <div className="pointer-events-none">
               <div className="flex min-h-[156px] flex-col items-center justify-center gap-3 overflow-visible rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 sm:min-h-[176px] sm:gap-4 sm:py-6">
                 <span className="material-symbols-outlined inline-block origin-center text-[48px] leading-none text-gray-400 [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_48] scale-[1.78] sm:text-[48px] sm:scale-[2.02]" aria-hidden>cloud_upload</span>

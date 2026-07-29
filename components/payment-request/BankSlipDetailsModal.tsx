@@ -650,7 +650,7 @@ export function BankSlipDetailsModal({
 
   const handleCommitInlineUpload = async () => {
     if (!inlineBillId || stagedUploads.length === 0) {
-      setUploadError("Pick at least one bank slip to upload.");
+      setUploadError("I need at least one bank slip to work with first.");
       return;
     }
     setUploadError(null);
@@ -697,7 +697,7 @@ export function BankSlipDetailsModal({
           /* best-effort rollback */
         }
       }
-      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Want to try again?");
+      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Let's try again?");
     } finally {
       setUploading(false);
     }
@@ -721,7 +721,7 @@ export function BankSlipDetailsModal({
       if (wasLast) onClose();
     } catch (e) {
       setPendingDeleteFileId(null);
-      setDeleteError(e instanceof ApiError ? e.message : "This bank slip's being a bit stubborn - want to try again?");
+      setDeleteError(e instanceof ApiError ? e.message : "This bank slip's being a bit stubborn - let's try again?");
     } finally {
       setDeletePending(false);
     }
@@ -808,13 +808,13 @@ export function BankSlipDetailsModal({
                 />
               ) : files.length === 0 && !showInlineUpload ? (
                 <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">
-                  No bank slip files uploaded for these payments yet.
+                  No bank slips added for these payments yet.
                 </div>
               ) : (
                 <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">
                   {showInlineUpload && files.length === 0 && stagedUploads.length === 0
-                    ? "No uploaded files"
-                    : "Select a file to preview"}
+                    ? "No bank slips here yet."
+                    : "Pick a file and I'll show it here."}
                 </div>
               )}
             </div>
@@ -932,7 +932,7 @@ export function BankSlipDetailsModal({
                   accept={ATTACHMENT_ACCEPT}
                   onChange={handleStagedFilesSelected}
                   disabled={uploading}
-                  aria-label="Choose bank slip files to upload"
+                  aria-label="Choose bank slips to attach"
                 />
                 <div className="pointer-events-none">
                   <div className="flex min-h-[156px] flex-col items-center justify-center gap-3 overflow-visible rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 sm:min-h-[176px] sm:gap-4 sm:py-6">

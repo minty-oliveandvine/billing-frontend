@@ -1110,7 +1110,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                                     info
                                   </span>
                                   <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block bg-gray-950 text-white text-xs rounded-md py-2 px-3 whitespace-nowrap shadow-lg z-20 pointer-events-none">
-                                    {row.contactCaption?.trim() ? row.contactCaption : "No description"}
+                                    {row.contactCaption?.trim() ? row.contactCaption : "No description added"}
                                     <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-950"></div>
                                   </div>
                                 </div>

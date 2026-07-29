@@ -43,10 +43,10 @@ function describePdfError(err: unknown): string {
     case "InvalidPDFException":
       return "This file looks damaged or isn't a valid PDF, so it can't be previewed.";
     case "PasswordException":
-      return "This PDF's locked, so we couldn't open it for preview.";
+      return "This PDF's locked, so I couldn't open it for preview.";
     case "MissingPDFException":
     case "UnexpectedResponseException":
-      return "This PDF didn't come through - check your connection and give it another go?";
+      return "This PDF didn't come through - check your connection and let's give it another go?";
     default:
       return "This PDF can't be previewed here.";
   }
@@ -407,7 +407,7 @@ function PdfJsCanvasRenderer({
           />
           {passwordError ? (
             <p role="alert" className="text-xs font-medium text-red-500">
-              That password didn&apos;t work - want to try again?
+              That wasn&apos;t the right password! Let&apos;s try again?
             </p>
           ) : null}
           <button

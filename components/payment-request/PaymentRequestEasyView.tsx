@@ -699,7 +699,7 @@ export function PaymentRequestEasyView({
             </ul>
           ) : visibleRows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-4 py-12 text-center text-sm text-primary/60">
-              No payment requests match this status.
+              Hmm, nothing here with this status just yet.
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
@@ -749,7 +749,7 @@ export function PaymentRequestEasyView({
                                 info
                               </span>
                               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block bg-gray-950 text-white text-xs rounded-md py-2 px-3 whitespace-nowrap shadow-lg z-10 pointer-events-none">
-                                {row.contactCaption?.trim() ? row.contactCaption : "No description"}
+                                {row.contactCaption?.trim() ? row.contactCaption : "No description added"}
                                 <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-950"></div>
                               </div>
                             </div>

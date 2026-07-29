@@ -9,8 +9,10 @@ import {
   fetchEntityBillAccounts,
   fetchEntityBillContacts,
   isDuplicateBillReferenceError,
+  isXeroAuthError,
   publishBill,
   updateBill,
+  XERO_RECONNECT_MESSAGE,
   type BillDetail,
   type EntityBillContact,
 } from "@/lib/api";
@@ -130,7 +132,7 @@ export function EasyViewDraftDetailBody({
         });
       })
       .catch((e) => {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this bill didn't come through. Want to try again?");
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this bill didn't come through. Let's try again?");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -224,7 +226,7 @@ export function EasyViewDraftDetailBody({
         setBillNoError(e.message);
       } else {
         showToast(
-          e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?",
+          e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?",
           "error",
         );
       }
@@ -328,7 +330,7 @@ export function EasyViewReadonlyBillDetailBody({
       })
       .catch((e) => {
         if (cancelled) return;
-        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Want to try again?");
+        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Let's try again?");
         setLoading(false);
       });
     return () => {
@@ -379,7 +381,11 @@ export function EasyViewReadonlyBillDetailBody({
       onBillUpdated?.();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This bill didn't quite make it over to Xero. Want to try again?",
+        isXeroAuthError(e)
+          ? XERO_RECONNECT_MESSAGE
+          : e instanceof ApiError
+            ? e.message
+            : "Hmm, this bill didn't quite make it over to Xero. Let's try again?",
         "error",
       );
     } finally {

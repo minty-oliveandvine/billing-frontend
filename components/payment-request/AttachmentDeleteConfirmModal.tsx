@@ -29,7 +29,7 @@ export function AttachmentDeleteConfirmModal({
         zIndex={430}
         onClose={onClose}
         acknowledgeOnly
-        title="At least one attachment required"
+        title="I need at least one attachment on a bill, so this one has to stay."
       >
         Any bill must have at least one supporting document. You may refresh the page to restore the last saved document.
       </ConfirmDialog>

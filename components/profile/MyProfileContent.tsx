@@ -68,7 +68,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
       setProfile(me);
     } catch (e) {
       setProfile(null);
-      setError(e instanceof ApiError ? e.message : "Hmm, your profile didn't come through. Want to give it another go?");
+      setError(e instanceof ApiError ? e.message : "Hmm, your profile didn't come through. Let's give it another go?");
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
       setUpdateHint(true);
       window.setTimeout(() => setUpdateHint(false), 2500);
     } catch (e) {
-      setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?");
+      setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?");
     } finally {
       setSaving(false);
     }

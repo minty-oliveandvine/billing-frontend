@@ -171,8 +171,8 @@ export function OverpaymentWarningModal({
         </ul>
 
         <p className="mt-4 text-sm leading-relaxed text-primary/70">
-          If you wish to edit the bill, please go to delete the payment history first. If it is
-          overpayment, please contact the accountant.
+          To edit this bill, you&apos;ll need to clear its payment history first. If it&apos;s been
+          overpaid, your accountant can help sort it out.
         </p>
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">

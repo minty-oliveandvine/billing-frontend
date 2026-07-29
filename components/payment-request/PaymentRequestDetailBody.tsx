@@ -14,10 +14,12 @@ import {
   fetchEntityBillContacts,
   fetchPayments,
   isDuplicateBillReferenceError,
+  isXeroAuthError,
   publishBill,
   returnBill as returnBillApi,
   updateBill,
   uploadBillAttachments,
+  XERO_RECONNECT_MESSAGE,
   type BillAttachment,
   type BillDetail,
   type EntityBillContact,
@@ -1001,7 +1003,11 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This bill didn't quite make it over to Xero. Want to try again?",
+        isXeroAuthError(e)
+          ? XERO_RECONNECT_MESSAGE
+          : e instanceof ApiError
+            ? e.message
+            : "This bill didn't quite make it over to Xero. Want to try again?",
         "error",
       );
     } finally {

@@ -33,6 +33,25 @@ export function isDuplicateBillReferenceError(err: unknown): err is ApiError {
 }
 
 /**
+ * Xero refused the request itself rather than the bill's contents — an expired,
+ * revoked, or otherwise unusable OAuth connection. The billing API forwards
+ * Xero's raw rejection payload as `detail`, so match on what that payload says
+ * rather than on the wrapper wording.
+ */
+export function isXeroAuthError(err: unknown): err is ApiError {
+  return (
+    err instanceof ApiError &&
+    /authenticationunsuccessful|"?status"?\s*:\s*403|\bforbidden\b|token(?:\s+has)?\s+expired|unauthori[sz]ed/i.test(
+      err.message,
+    )
+  );
+}
+
+/** Copy for a Xero connection that needs re-authorising, in the app's voice. */
+export const XERO_RECONNECT_MESSAGE =
+  "The Xero connection needs reconnecting - an admin can sort that in Settings, then this'll publish fine.";
+
+/**
  * Friendly copy for statuses where the server's own wording is unhelpful or
  * absent. Raw `statusText` ("Bad Gateway", "Internal Server Error") used to
  * reach users verbatim; these stand in instead.

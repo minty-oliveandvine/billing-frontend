@@ -9,8 +9,10 @@ import {
   fetchEntityBillAccounts,
   fetchEntityBillContacts,
   isDuplicateBillReferenceError,
+  isXeroAuthError,
   publishBill,
   updateBill,
+  XERO_RECONNECT_MESSAGE,
   type BillDetail,
   type EntityBillContact,
 } from "@/lib/api";
@@ -379,7 +381,11 @@ export function EasyViewReadonlyBillDetailBody({
       onBillUpdated?.();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This bill didn't quite make it over to Xero. Want to try again?",
+        isXeroAuthError(e)
+          ? XERO_RECONNECT_MESSAGE
+          : e instanceof ApiError
+            ? e.message
+            : "This bill didn't quite make it over to Xero. Want to try again?",
         "error",
       );
     } finally {

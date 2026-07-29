@@ -73,7 +73,7 @@ export function AccountCodeSettings() {
       setSavedIds(new Set(selectedIds));
       showToast("Bill settings updated successfully", "success");
     } catch {
-      showToast("Hmm, some of those changes didn't save. Want to give it another go?", "error");
+      showToast("Hmm, some of those changes didn't save. Let's give it another go?", "error");
     } finally {
       setSaving(false);
     }
@@ -168,7 +168,7 @@ export function AccountCodeSettings() {
                 </div>
               </>
             ) : rows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-primary/60">No account codes available. Please ensure Xero is connected.</p>
+              <p className="py-8 text-center text-sm text-primary/60">No account codes yet - I&apos;ll show them here once Xero&apos;s connected.</p>
             ) : filtered.length === 0 ? (
               <>
                 <div className="flex items-center justify-between gap-3 px-3 sm:px-4">
@@ -220,7 +220,7 @@ export function AccountCodeSettings() {
 
       {expanded ? (
         <div className="mt-3 flex w-full flex-col gap-3">
-          <button type="button" onClick={handleSave} disabled={saving || readOnly} title={isViewOnly ? "You have view-only access and cannot perform this action" : isReadOnlyRole ? "Only Accountant, Admin, or Super Admin can modify bill settings" : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
+          <button type="button" onClick={handleSave} disabled={saving || readOnly} title={isViewOnly ? "Hmm, I can't let you in there - you've got view-only access." : isReadOnlyRole ? "That task is reserved for our Accountants and Admins." : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>

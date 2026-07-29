@@ -49,7 +49,7 @@ export function isXeroAuthError(err: unknown): err is ApiError {
 
 /** Copy for a Xero connection that needs re-authorising, in the app's voice. */
 export const XERO_RECONNECT_MESSAGE =
-  "The Xero connection needs reconnecting - an admin can sort that in Settings, then this'll publish fine.";
+  "Hmm, the Xero connection needs reconnecting - an admin can sort that in Settings, then I'll get this published.";
 
 /**
  * Friendly copy for statuses where the server's own wording is unhelpful or
@@ -61,15 +61,15 @@ export const XERO_RECONNECT_MESSAGE =
  * message must pass through untouched.
  */
 const STATUS_FALLBACK_MESSAGES: Record<number, string> = {
-  403: "You don't have access to this one.",
-  404: "We couldn't find that one. It may have been removed.",
-  408: "That took too long to come back. Want to try again?",
-  409: "Someone else changed this while you were working. Refresh and try again?",
-  429: "That's a lot at once - give it a moment and try again.",
-  500: "Something went wrong on our end. Want to try again?",
-  502: "We couldn't reach the server. Want to try again?",
-  503: "The server's unavailable right now. Want to try again in a moment?",
-  504: "The server took too long to respond. Want to try again?",
+  403: "Hmm, I can't let you in there.",
+  404: "I searched everywhere, but that doesn't seem to be here anymore.",
+  408: "That took a while to come back to me - let's try again?",
+  409: "Someone else changed this while you were working. Let's refresh and try again?",
+  429: "That's a lot at once! Give me a moment, then let's try again.",
+  500: "Something got stuck on my end! Let's try again?",
+  502: "I couldn't reach the server just now. Let's try again?",
+  503: "The server's having a rest right now. Let's try again in a moment?",
+  504: "The server took too long to get back to me. Let's try again?",
 };
 
 /**
@@ -105,7 +105,7 @@ function resolveApiErrorMessage(
   if (raw && !isRawStatusText(raw, statusText)) return raw;
   return (
     STATUS_FALLBACK_MESSAGES[status] ??
-    "Something went wrong. Want to try again?"
+    "Something got stuck! Let's try again?"
   );
 }
 
@@ -120,14 +120,14 @@ async function requireAuthenticatedSession(): Promise<AuthInfo> {
     const refreshed = await refreshToken();
     if (!refreshed && isTokenExpired()) {
       redirectToLogin();
-      throw new ApiError(401, "Your session timed out - taking you back to login.");
+      throw new ApiError(401, "Our session timed out - let me take you back to login.");
     }
   }
 
   const auth = getAuth();
   if (!auth?.token) {
     redirectToLogin();
-    throw new ApiError(401, "You're signed out - taking you back to login.");
+    throw new ApiError(401, "You're signed out - let me take you back to login.");
   }
   return auth;
 }
@@ -150,7 +150,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     if (res.status === 401) {
       redirectToLogin();
-      throw new ApiError(401, "Your session timed out - taking you back to login.");
+      throw new ApiError(401, "Our session timed out - let me take you back to login.");
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     const msg = resolveApiErrorMessage(
@@ -238,7 +238,7 @@ async function fetchAttachmentDownloadJson(path: string): Promise<{
   if (!res.ok) {
     if (res.status === 401) {
       redirectToLogin();
-      throw new ApiError(401, "Your session timed out - taking you back to login.");
+      throw new ApiError(401, "Our session timed out - let me take you back to login.");
     }
     return null;
   }
@@ -347,7 +347,7 @@ export async function fetchPaymentAttachmentPreview(
       }
       const bytes = await fetchBytesFromResolvedFileUrl(absolute);
       if (!bytes || bytes.size === 0) {
-        lastError = new ApiError(404, "That attachment came back empty. Want to try again?");
+        lastError = new ApiError(404, "That attachment came back empty. Let's try again?");
         continue;
       }
       const t = (bytes.type || "").toLowerCase();
@@ -368,7 +368,7 @@ export async function fetchPaymentAttachmentPreview(
   }
 
   if (lastError instanceof Error) throw lastError;
-  throw new ApiError(404, "That attachment didn't come through. Want to try again?");
+  throw new ApiError(404, "Hmm, that attachment didn't come through. Let's try again?");
 }
 
 // ── Types ────────────────────────────────────────────────────────────

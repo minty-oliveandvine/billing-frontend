@@ -111,7 +111,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
 
   const handleUploadClick = async () => {
     if (uploadedFiles.length === 0) {
-      setUploadError("Pick at least one attachment to upload.");
+      setUploadError("I need at least one file to work with first.");
       return;
     }
     if (uploading) return;
@@ -121,7 +121,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
       await Promise.resolve(onUpload(uploadedFiles.map((x) => x.file)));
       onClose();
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "That upload didn't quite go through. Want to try again?");
+      setUploadError(e instanceof Error ? e.message : "That upload didn't quite go through. Let's try again?");
     } finally {
       setUploading(false);
     }
@@ -198,7 +198,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
                 </div>
               ) : (
                 <div className="flex min-h-[156px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-primary/60 sm:min-h-[176px]">
-                  Select a file to preview
+                  Pick a file and I&apos;ll show it here.
                 </div>
               )}
             </div>
@@ -239,7 +239,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
             </div>
 
             <div className="relative min-w-0">
-              <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose attachment files to upload" />
+              <input ref={fileInputRef} type="file" className="absolute inset-0 z-20 h-full min-h-[156px] w-full cursor-pointer opacity-0 sm:min-h-[176px]" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFilesSelected} aria-label="Choose files to attach" />
               <div className="pointer-events-none">
                 <div className="flex min-h-[156px] flex-col items-center justify-center gap-3 overflow-visible rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 sm:min-h-[176px] sm:gap-4 sm:py-6">
                   <span className="material-symbols-outlined inline-block origin-center text-[48px] leading-none text-gray-400 [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_48] scale-[1.78] sm:scale-[2.02]" aria-hidden>

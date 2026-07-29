@@ -332,7 +332,7 @@ export function RecordPaymentModal({
       } catch (err) {
         if (!cancelled) {
           showToast(
-            err instanceof Error ? err.message : "Those payments didn't quite update. Want to give it another go?",
+            err instanceof Error ? err.message : "Those payments didn't quite update. Let's give it another go?",
             "error",
           );
         }
@@ -382,7 +382,7 @@ export function RecordPaymentModal({
       if (payMode === "partial") setDraftAmount("");
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "That payment didn't quite go through. Want to try again?",
+        err instanceof Error ? err.message : "That payment didn't quite go through. Let's try again?",
         "error",
       );
     } finally {
@@ -425,7 +425,7 @@ export function RecordPaymentModal({
       onPaymentSaved?.();
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "That payment's being a bit stubborn - want to try again?",
+        err instanceof Error ? err.message : "That payment's being a bit stubborn - let's try again?",
         "error",
       );
     } finally {
@@ -508,7 +508,7 @@ export function RecordPaymentModal({
                     info
                   </span>
                   <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block bg-gray-950 text-white text-xs rounded-md py-1 px-3 whitespace-nowrap shadow-lg z-20 pointer-events-none">
-                    {description?.trim() ? description : "No description"}
+                    {description?.trim() ? description : "No description added"}
                     <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-950"></div>
                   </div>
                 </div>
@@ -804,7 +804,7 @@ export function RecordPaymentModal({
                   </div>
                   {bankSlipRequiredForPending ? (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-                      Add at least one bank slip attachment to finalize pending payments. Draft bills do not require this.
+                      I need at least one bank slip to finalise pending payments - draft bills don&apos;t need one.
                     </p>
                   ) : null}
                   {finalizingPending ? (
@@ -848,7 +848,7 @@ export function RecordPaymentModal({
                   </div>
                   {bankSlipRequiredForPending ? (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-                      Add at least one bank slip attachment to finalize pending payments. Draft bills do not require this.
+                      I need at least one bank slip to finalise pending payments - draft bills don&apos;t need one.
                     </p>
                   ) : null}
                   {finalizingPending ? (

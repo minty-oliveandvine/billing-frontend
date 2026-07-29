@@ -14,7 +14,7 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
+    req.onerror = () => reject(req.error ?? new Error("I couldn't get to your saved attachments just now."));
   });
 }
 

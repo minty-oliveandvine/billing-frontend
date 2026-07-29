@@ -27,7 +27,7 @@ export async function compressImage(file: File): Promise<File> {
 
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        reject(new Error("Unable to create canvas"));
+        reject(new Error("Hmm, I couldn't quite process that image. Got another one?"));
         return;
       }
 
@@ -42,7 +42,7 @@ export async function compressImage(file: File): Promise<File> {
           URL.revokeObjectURL(img.src);
 
           if (!blob) {
-            reject(new Error("Compression failed"));
+            reject(new Error("Hmm, I couldn't quite process that image. Got another one?"));
             return;
           }
 
@@ -62,7 +62,7 @@ export async function compressImage(file: File): Promise<File> {
 
     img.onerror = () => {
       URL.revokeObjectURL(img.src);
-      reject(new Error("Failed to load image"));
+      reject(new Error("Hmm, that image didn't load. Got another one?"));
     };
 
     img.src = URL.createObjectURL(file);

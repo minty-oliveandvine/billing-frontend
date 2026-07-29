@@ -396,7 +396,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       .catch((e) => {
         if (!cancelled) {
           setBill(null);
-          setLoadError(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Want to try again?");
+          setLoadError(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Let's try again?");
           attachmentUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
           attachmentUrlsRef.current = [];
           setAttachments([]);
@@ -725,7 +725,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
             await loadAttachmentsFromIndexedDb();
             // Details saved; only the attachment cache write failed.
             showToast(
-              "Your bill details are saved, but the attachments didn't quite update. Want to try editing them again?",
+              "I saved your bill details, but the attachments didn't quite update. Let's try editing them again?",
               "warning",
             );
           }
@@ -756,7 +756,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           setBillNoError(e.message);
         } else {
           showToast(
-            e instanceof ApiError ? e.message : "That didn't quite save. Want to give it another go?",
+            e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?",
             "error",
           );
         }
@@ -848,7 +848,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This bill's being a bit stubborn - want to try again?",
+        e instanceof ApiError ? e.message : "This bill's being a bit stubborn - let's try again?",
         "error",
       );
     } finally {
@@ -934,7 +934,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           await loadAttachmentsFromIndexedDb();
           // Submit succeeded; only the attachment cache write failed.
           showToast(
-            "Your bill went through, but the attachments didn't quite update. Want to try editing them again?",
+            "Your bill went through, but the attachments didn't quite update. Let's try editing them again?",
             "warning",
           );
         }
@@ -966,7 +966,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         setSubmitAttemptFieldErrors(null);
       } else {
         showToast(
-          e instanceof ApiError ? e.message : "This bill didn't quite make it through. Want to give it another go?",
+          e instanceof ApiError ? e.message : "This bill didn't quite make it through. Let's give it another go?",
           "error",
         );
       }
@@ -1007,7 +1007,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           ? XERO_RECONNECT_MESSAGE
           : e instanceof ApiError
             ? e.message
-            : "This bill didn't quite make it over to Xero. Want to try again?",
+            : "Hmm, this bill didn't quite make it over to Xero. Let's try again?",
         "error",
       );
     } finally {
@@ -1025,7 +1025,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "That didn't quite work - want to try sending it back again?",
+        e instanceof ApiError ? e.message : "That didn't quite work - let's try sending it back again?",
         "error",
       );
     } finally {
@@ -1448,14 +1448,14 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
                 <button
                   type="button"
                   disabled={!isElevated || isViewOnly || isEditing}
-                  title={isViewOnly ? "You have view-only access and cannot perform this action" : undefined}
+                  title={isViewOnly ? "Hmm, I can't let you in there - you've got view-only access." : undefined}
                   onClick={() => {
                     if (!isViewOnly) {
                       setRecordPaymentReadOnly(false);
                       setRecordPaymentOpen(true);
                     }
                   }}
-                  aria-label={isViewOnly ? "View-only access — record payment not available" : "Record payment"}
+                  aria-label={isViewOnly ? "Record payment - unavailable with view-only access" : "Record payment"}
                   className={recordPaymentDetailButtonClass}
                 >
                   <span className="whitespace-nowrap">Record Payment</span>

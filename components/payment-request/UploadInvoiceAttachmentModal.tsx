@@ -138,7 +138,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
             <h2 id={titleId} className="text-lg font-bold leading-snug text-black sm:text-xl md:text-2xl">
               Upload Attachment
             </h2>
-            <p className="mt-1 text-sm text-primary/70">Add invoice images or PDFs to this bill.</p>
+            <p className="mt-1 text-sm text-primary/70">Add invoice images or PDFs to this payment.</p>
           </div>
           <button type="button" onClick={() => !uploading && onClose()} className={`-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-primary transition-colors hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`} aria-label="Close" disabled={uploading}>
             <span className="material-symbols-outlined text-[22px] leading-none" aria-hidden>

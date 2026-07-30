@@ -396,7 +396,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       .catch((e) => {
         if (!cancelled) {
           setBill(null);
-          setLoadError(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Let's try again?");
+          setLoadError(e instanceof ApiError ? e.message : "Hmm, this payment didn't come through. Let's try again?");
           attachmentUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
           attachmentUrlsRef.current = [];
           setAttachments([]);
@@ -725,7 +725,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
             await loadAttachmentsFromIndexedDb();
             // Details saved; only the attachment cache write failed.
             showToast(
-              "I saved your bill details, but the attachments didn't quite update. Let's try editing them again?",
+              "I saved your payment details, but the attachments didn't quite update. Let's try editing them again?",
               "warning",
             );
           }
@@ -848,7 +848,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This bill's being a bit stubborn - let's try again?",
+        e instanceof ApiError ? e.message : "This payment's being a bit stubborn - let's try again?",
         "error",
       );
     } finally {
@@ -934,7 +934,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           await loadAttachmentsFromIndexedDb();
           // Submit succeeded; only the attachment cache write failed.
           showToast(
-            "Your bill went through, but the attachments didn't quite update. Let's try editing them again?",
+            "Your payment went through, but the attachments didn't quite update. Let's try editing them again?",
             "warning",
           );
         }
@@ -966,7 +966,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         setSubmitAttemptFieldErrors(null);
       } else {
         showToast(
-          e instanceof ApiError ? e.message : "This bill didn't quite make it through. Let's give it another go?",
+          e instanceof ApiError ? e.message : "This payment didn't quite make it through. Let's give it another go?",
           "error",
         );
       }
@@ -1007,7 +1007,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           ? XERO_RECONNECT_MESSAGE
           : e instanceof ApiError
             ? e.message
-            : "Hmm, this bill didn't quite make it over to Xero. Let's try again?",
+            : "Hmm, this payment didn't quite make it over to Xero. Let's try again?",
         "error",
       );
     } finally {

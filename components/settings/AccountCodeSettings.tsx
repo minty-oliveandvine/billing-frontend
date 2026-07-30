@@ -71,7 +71,7 @@ export function AccountCodeSettings() {
         changedIds.map(({ id, is_active }) => updateEntityBillAccount(id, { is_active })),
       );
       setSavedIds(new Set(selectedIds));
-      showToast("Bill settings updated successfully", "success");
+      showToast("Payment settings updated successfully", "success");
     } catch {
       showToast("Hmm, some of those changes didn't save. Let's give it another go?", "error");
     } finally {
@@ -121,8 +121,8 @@ export function AccountCodeSettings() {
       <div className={`overflow-hidden rounded-lg border border-gray-200 ${readOnly ? "bg-gray-100" : "bg-white"} shadow-sm`}>
         <button type="button" onClick={() => setExpanded((e) => !e)} className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left sm:px-5" aria-expanded={expanded}>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Bill Account Code</h2>
-            <p className="text-sm text-gray-600">Only selected account code will appear when adding a bill in Bill.</p>
+            <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Payment Account Code</h2>
+            <p className="text-sm text-gray-600">Only selected account code will appear when adding a payment in Payment.</p>
           </div>
           <span
             className={`material-symbols-outlined shrink-0 cursor-pointer text-[24px] leading-none text-gray-400 transition-transform duration-200 ease-out ${expanded ? "rotate-0" : "rotate-180"}`}
@@ -207,7 +207,7 @@ export function AccountCodeSettings() {
                   return (
                     <li key={row.id} className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${index > 0 ? "border-t border-gray-100" : ""}`}>
                       <span className="min-w-0 flex-1 text-base font-normal text-gray-700">{row.label}</span>
-                      <input type="checkbox" checked={isChecked} onChange={() => toggleRow(row.id)} disabled={readOnly} className={CHECKBOX_CLASS} aria-label={`Include ${row.label} in bill account dropdown`}/>
+                      <input type="checkbox" checked={isChecked} onChange={() => toggleRow(row.id)} disabled={readOnly} className={CHECKBOX_CLASS} aria-label={`Include ${row.label} in payment account dropdown`}/>
                     </li>
                   );
                 })}

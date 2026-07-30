@@ -30,7 +30,7 @@ export function Header({
   showLogo = false,
   brandHref,
   backHref,
-  backLabel = "Bills",
+  backLabel = "Payments",
   statusBadge,
   titleActions,
   navItems,

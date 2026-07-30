@@ -132,7 +132,7 @@ export function EasyViewDraftDetailBody({
         });
       })
       .catch((e) => {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this bill didn't come through. Let's try again?");
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this payment didn't come through. Let's try again?");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -330,7 +330,7 @@ export function EasyViewReadonlyBillDetailBody({
       })
       .catch((e) => {
         if (cancelled) return;
-        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this bill didn't come through. Let's try again?");
+        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this payment didn't come through. Let's try again?");
         setLoading(false);
       });
     return () => {
@@ -385,7 +385,7 @@ export function EasyViewReadonlyBillDetailBody({
           ? XERO_RECONNECT_MESSAGE
           : e instanceof ApiError
             ? e.message
-            : "Hmm, this bill didn't quite make it over to Xero. Let's try again?",
+            : "Hmm, this payment didn't quite make it over to Xero. Let's try again?",
         "error",
       );
     } finally {

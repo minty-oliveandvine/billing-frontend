@@ -350,7 +350,7 @@ export function RecordPaymentModal({
     if (payMode === "full" && fullPayLocked) {
       setFormError(
         billIsPartiallyPaid
-          ? "This bill's partially paid already - Partial Pay will handle anything extra."
+          ? "This payment's partially paid already - Partial Pay will handle anything extra."
           : "There's already a payment on this invoice, so Partial Pay is the one you want.",
       );
       return;
@@ -543,7 +543,7 @@ export function RecordPaymentModal({
                 title={
                   fullPayLocked
                     ? billIsPartiallyPaid
-                      ? "Full Pay isn't available once a bill's Partially Paid - Partial Pay will cover the rest."
+                      ? "Full Pay isn't available once a payment's Partially Paid - Partial Pay will cover the rest."
                       : "Full Pay only works before any partial payment is recorded - Partial Pay will cover the rest."
                     : undefined
                 }

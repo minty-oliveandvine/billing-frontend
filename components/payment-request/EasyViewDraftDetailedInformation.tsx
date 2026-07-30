@@ -152,7 +152,7 @@ export function EasyViewDraftBillActionsRow({
         disabled={actions.deleteDisabled}
         className="inline-flex h-10 min-h-[44px] w-auto shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md bg-rose-50 px-3 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
       >
-        Delete Bill
+        Delete Payment
         <span className="material-symbols-outlined text-[20px] leading-none" aria-hidden>
           delete
         </span>
@@ -213,7 +213,7 @@ export function EasyViewDraftDetailedInformation({
         {/* Same read-only controls as main Detailed Information, in a horizontal grid */}
         <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-4">
           <div className="min-w-0">
-            <div className={paymentRequestDetailFieldLabelClass}>Bill No.</div>
+            <div className={paymentRequestDetailFieldLabelClass}>Payment No.</div>
             <PaymentRequestReadOnlyTextBox>{billNo}</PaymentRequestReadOnlyTextBox>
           </div>
           <div className="min-w-0">
@@ -356,7 +356,7 @@ export function EasyViewDraftDetailedInformationEdit({
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-4">
         <div className="min-w-0">
           <label htmlFor={idBillNo} className={paymentRequestDetailFieldLabelClass}>
-            Bill No.
+            Payment No.
           </label>
           <input
             id={idBillNo}

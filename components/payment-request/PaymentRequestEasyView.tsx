@@ -192,7 +192,7 @@ function EasyViewStatusCell({
           stop(e);
           onDraftBillOpen(row.id);
         }}
-        aria-label="Voided — show bill details"
+        aria-label="Voided — show payment details"
       >
         Voided
       </button>
@@ -207,7 +207,7 @@ function EasyViewStatusCell({
           stop(e);
           onDraftBillOpen(row.id);
         }}
-        aria-label="Returned — show bill details"
+        aria-label="Returned — show payment details"
       >
         Returned
       </button>
@@ -222,7 +222,7 @@ function EasyViewStatusCell({
           stop(e);
           onDraftBillOpen(row.id);
         }}
-        aria-label="Draft — show bill details"
+        aria-label="Draft — show payment details"
       >
         Draft
       </button>

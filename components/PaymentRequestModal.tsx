@@ -535,7 +535,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "That bill didn't quite go through. Let's try again?",
+          err instanceof Error ? err.message : "That payment didn't quite go through. Let's try again?",
         );
       }
     } finally {
@@ -621,7 +621,7 @@ export function PaymentRequestModal({
 
           <div className="flex flex-col gap-5">
             <div>
-              <FieldLabel htmlFor="pr-bill-no">Bill No.</FieldLabel>
+              <FieldLabel htmlFor="pr-bill-no">Payment No.</FieldLabel>
               <input
                 id="pr-bill-no"
                 type="text"

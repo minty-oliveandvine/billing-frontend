@@ -445,6 +445,37 @@ export function getBankSlipDetailsForRow(row: PaymentRequestRow): BankSlipDetail
   };
 }
 
+export function billDetailHref(rowId: string): string {
+  return `/payment-request/${rowId}`;
+}
+
+/**
+ * Transparent anchor stretched over its positioned parent (a table cell or card).
+ * Gives the browser a real link at every point of the row body, so right-click
+ * offers "Open link in new tab" and ctrl/cmd-click or middle-click open a new tab,
+ * matching easy view. A plain left-click is cancelled here and handled by the
+ * row's onClick so client-side routing still applies.
+ * Interactive content in the same cell must sit in a `relative z-[1]` wrapper to
+ * stay above this overlay.
+ */
+function RowLinkOverlay({ rowId, label }: { rowId: string; label: string }) {
+  return (
+    <a
+      href={billDetailHref(rowId)}
+      aria-label={label}
+      tabIndex={-1}
+      className="absolute inset-0 z-0"
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+          e.stopPropagation();
+          return;
+        }
+        e.preventDefault();
+      }}
+    />
+  );
+}
+
 export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, PaymentRequestTableProps>(function PaymentRequestTable(
   {
     rows = DEMO_ROWS,
@@ -758,9 +789,10 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                       : statusTagClass;
             const articleClassName = `rounded-xl border border-gray-200 p-4 shadow-sm transition-colors ${isVoided ? "bg-[#F5F5F5]" : isPaid ? "bg-[#F5F5F5]" : isPaymentRequested ? "bg-secondary/10" : isPartiallyPaid ? "bg-[#70ebba]/10" : isReturned ? "bg-[#EA9713]/10" : "bg-[#F5F5F5]"} ${isVoided ? "cursor-pointer active:bg-gray-200/60" : isPaid ? "cursor-pointer active:bg-gray-200/60" : isPaymentRequested ? "cursor-pointer active:bg-secondary/20" : isPartiallyPaid ? "cursor-pointer active:bg-[#70ebba]/20" : isReturned ? "cursor-pointer active:bg-[#EA9713]/20" : "cursor-pointer active:bg-gray-200/60"}`;
             return (
-              <article key={row.id} role="listitem" className={articleClassName} onClick={() => { onRowClick?.(row.id); }}>
+              <article key={row.id} role="listitem" className={`${articleClassName} relative`} onClick={() => { onRowClick?.(row.id); }}>
+                <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                 <div className="flex gap-3">
-                  <div className="hidden shrink-0 pt-0.5 sm:block" onClick={(e) => e.stopPropagation()}>
+                  <div className="relative z-[1] hidden shrink-0 pt-0.5 sm:block" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(row.id)} disabled={isVoided} onChange={() => toggleRow(row.id)} className={`${HEADER_CHECKBOX_CLASS} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={isVoided ? `Voided — cannot select ${row.contactTitle}` : `Select row ${row.contactTitle}`} suppressHydrationWarning />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -774,7 +806,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                         ) : null}
                       </div>
                       {row.status ? (
-                        <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative z-[1] shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
                           <span className={statusBadgeClass}>{row.status}</span>
                         </div>
                       ) : null}
@@ -797,7 +829,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                         </div>
                       ) : null}
                     </div>
-                    <div className="mt-4 flex min-h-[2.5rem] min-w-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative z-[1] mt-4 flex min-h-[2.5rem] min-w-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex min-w-0 min-h-10 flex-1 flex-wrap items-center gap-2">
                         {!isVoided && !isDraft && !isReturned && isElevated ? (
                           isPaid ? (
@@ -963,7 +995,8 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                       switch (title) {
                         case "Supplier / Description":
                           return (
-                            <td key={title} className={contactCellClass}>
+                            <td key={title} className={`${contactCellClass} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                               <div className="flex min-w-0 flex-col gap-0.5">
                                 <span className="text-sm font-semibold text-primary sm:text-base">{row.contactTitle}</span>
                                 {row.contactCaption ? <span className="text-xs text-primary/65 sm:text-sm">{row.contactCaption}</span> : null}
@@ -971,10 +1004,16 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                             </td>
                           );
                         case "Invoice Date":
-                          return <td key={title} className={singleLineDateCellClass}>{row.invoiceDate}</td>;
+                          return (
+                            <td key={title} className={`${singleLineDateCellClass} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
+                              {row.invoiceDate}
+                            </td>
+                          );
                         case "Status":
                           return (
-                            <td key={title} className={singleLineStatusCellClass}>
+                            <td key={title} className={`${singleLineStatusCellClass} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                               {row.status ? (
                                 <span
                                   className={
@@ -997,10 +1036,16 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                             </td>
                           );
                         case "Submitted Date":
-                          return <td key={title} className={invoiceDateCellClass}>{row.submittedDate}</td>;
+                          return (
+                            <td key={title} className={`${invoiceDateCellClass} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
+                              {row.submittedDate}
+                            </td>
+                          );
                         case "Unpaid Amount":
                           return (
-                            <td key={title} className={unpaidAmountCellClass}>
+                            <td key={title} className={`${unpaidAmountCellClass} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                               {row.unpaidAmount || row.invoiceTotal ? (
                                 <div className="flex min-w-0 flex-col gap-0.5">
                                   {row.unpaidAmount ? <span className={"whitespace-nowrap text-sm font-semibold sm:text-base " + unpaidAmountTextClass(row.status)}>{row.unpaidAmount}</span> : null}
@@ -1018,7 +1063,9 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                           const canRecord = !isPaid && !isVoided && !isDraft && !isReturned && isElevated;
                           const disabledViewPaid = isPaid && !isVoided && !isDraft && !isElevated;
                           return (
-                            <td key={title} className={`${dataCellBase} align-middle text-left ${actionBodyCellBg}`}>
+                            <td key={title} className={`${dataCellBase} align-middle text-left ${actionBodyCellBg} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
+                              <div className="relative z-[1] inline-flex">
                               <button
                                 type="button"
                                 disabled={!canViewPaid && !canRecord}
@@ -1054,19 +1101,22 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                                   </span>
                                 )}
                               </button>
+                              </div>
                             </td>
                           );
                         }
                         case "Paid Date":
                           return (
-                            <td key={title} className={`${singleLineDateCellClass} ${actionBodyCellBg}`}>
+                            <td key={title} className={`${singleLineDateCellClass} ${actionBodyCellBg} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                               {row.paidDate.trim() ? row.paidDate : <span className="text-primary/40 tabular-nums" aria-label="No paid date">-</span>}
                             </td>
                           );
                         case "Bankslip":
                           return (
-                            <td key={title} className={`${invoiceDateCellClass} ${actionBodyCellBg}`}>
-                              <div className="flex items-center gap-2">
+                            <td key={title} className={`${invoiceDateCellClass} ${actionBodyCellBg} relative`}>
+                              <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
+                              <div className="relative z-[1] flex items-center gap-2">
                                 <div>
                                   {row.bankslipFileCount != null && row.bankslipFileCount > 0 ? (
                                     <button
@@ -1121,7 +1171,8 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                           return null;
                       }
                     })}
-                    <td className={`border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3 ${actionBodyCellBg}`}>
+                    <td className={`border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3 ${actionBodyCellBg} relative`}>
+                      <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                       <img src={xeroConnected ? "/xero-active.png" : "/xero-inactive.png"} alt={xeroConnected ? "Xero connected" : "Xero not connected"} width={40} height={40} className="mx-auto h-10 w-10 max-h-10 max-w-10 object-contain" />
                     </td>
                     <td className={`border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3 ${actionBodyCellBg}`}>

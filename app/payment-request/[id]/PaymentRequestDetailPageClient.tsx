@@ -47,7 +47,7 @@ export function PaymentRequestDetailPageClient() {
         showLogo={false}
         brandHref={null}
         backHref="/"
-        backLabel="Bills"
+        backLabel="Payments"
         companyName={auth?.entityName || "Loading…"}
         companyAbbreviation={entityAbbr}
         statusBadge={<PaymentRequestDetailStatusBadge refreshSignal={billStatusRefresh} />}

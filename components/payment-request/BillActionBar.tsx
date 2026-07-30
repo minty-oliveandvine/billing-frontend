@@ -54,7 +54,7 @@ export function BillActionBar({
   voidButtonTrailing = false,
 }: BillActionBarProps) {
   const removeMenuLabel = isDraftBill ? "Delete" : "Void";
-  const removePrimaryLabel = isDraftBill ? "Delete Bill" : "Void Bill";
+  const removePrimaryLabel = isDraftBill ? "Delete Payment" : "Void Payment";
   const isPublished = publishStatus === "published";
   const menuId = useId();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -102,7 +102,7 @@ export function BillActionBar({
             data-bill-action-menu-panel
             id={menuId}
             role="menu"
-            aria-label="Bill actions"
+            aria-label="Payment actions"
             className="fixed z-[400] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
             style={{ top: pos.top, left: pos.left, minWidth: ROW_MENU_MIN_WIDTH_PX }}
           >
@@ -183,7 +183,7 @@ export function BillActionBar({
             data-bill-action-menu-trigger
             disabled={overflowMenuTriggerDisabled || publishPending}
             className={rowMenuButtonClass}
-            aria-label="More bill actions"
+            aria-label="More payment actions"
             aria-expanded={menuOpen ? "true" : "false"}
             aria-haspopup="menu"
             aria-controls={menuOpen ? menuId : undefined}
@@ -203,7 +203,7 @@ export function BillActionBar({
           type="button"
           onClick={isPublished || publishDisabled ? undefined : onPublishToXero}
           disabled={isPublished || publishPending || publishDisabled}
-          title={publishDisabled ? "This bill's been voided, so there's nothing to publish." : undefined}
+          title={publishDisabled ? "This payment's been voided, so there's nothing to publish." : undefined}
           className={
             "inline-flex h-10 min-h-[44px] w-auto max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:gap-2 sm:px-4 " +
             (isPublished

@@ -279,7 +279,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setBills(enriched);
     } catch (err) {
       if (seq === loadSeqRef.current) {
-        setLoadError(err instanceof Error ? err.message : "Hmm, your bills didn't come through. Let's give it another go?");
+        setLoadError(err instanceof Error ? err.message : "Hmm, your payments didn't come through. Let's give it another go?");
       }
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
@@ -433,7 +433,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setBulkDeleteModalOpen(false);
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Those bills are being a bit stubborn - let's try again?",
+        err instanceof Error ? err.message : "Those payments are being a bit stubborn - let's try again?",
         "error",
       );
     } finally {
@@ -449,7 +449,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       tableRef.current?.clearSelection();
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Those bills didn't quite make it over. Let's try again?",
+        err instanceof Error ? err.message : "Those payments didn't quite make it over. Let's try again?",
         "error",
       );
     }
@@ -587,7 +587,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     await loadBills();
                   } catch (err) {
                     showToast(
-                      err instanceof Error ? err.message : "This bill's being a bit stubborn - let's try again?",
+                      err instanceof Error ? err.message : "This payment's being a bit stubborn - let's try again?",
                       "error",
                     );
                     await loadBills();
@@ -600,7 +600,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     await loadBills();
                   } catch (err) {
                     showToast(
-                      err instanceof Error ? err.message : "This bill didn't quite make it over. Let's try again?",
+                      err instanceof Error ? err.message : "This payment didn't quite make it over. Let's try again?",
                       "error",
                     );
                   }

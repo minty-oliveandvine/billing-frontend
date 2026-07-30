@@ -39,7 +39,7 @@ export default function SettingsPage() {
         title="Settings"
         showLogo={false}
         backHref="/"
-        backLabel="Bills"
+        backLabel="Payments"
         companyName={auth?.entityName || "Loading…"}
         companyAbbreviation={entityAbbr}
         onLogout={handleLogout}

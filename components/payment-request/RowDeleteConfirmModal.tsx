@@ -20,8 +20,8 @@ export function RowDeleteConfirmModal({
   onConfirm,
 }: RowDeleteConfirmModalProps) {
   const trimmed = contactTitle.trim();
-  const title = isDraft ? "Delete this bill?" : "Void this bill?";
-  const confirmLabel = pending ? (isDraft ? "Deleting…" : "Voiding…") : isDraft ? "Delete Bill" : "Void Bill";
+  const title = isDraft ? "Delete this payment?" : "Void this payment?";
+  const confirmLabel = pending ? (isDraft ? "Deleting…" : "Voiding…") : isDraft ? "Delete Payment" : "Void Payment";
 
   return (
     <ConfirmDialog
@@ -43,10 +43,10 @@ export function RowDeleteConfirmModal({
         )
       ) : trimmed ? (
         <>
-          Are you sure you want to void <span className="font-semibold text-primary">&quot;{trimmed}&quot;</span>? The bill will be marked as voided and can no longer be edited.
+          Are you sure you want to void <span className="font-semibold text-primary">&quot;{trimmed}&quot;</span>? The payment will be marked as voided and can no longer be edited.
         </>
       ) : (
-        <>Are you sure you want to void this bill? It will be marked as voided and can no longer be edited.</>
+        <>Are you sure you want to void this payment? It will be marked as voided and can no longer be edited.</>
       )}
     </ConfirmDialog>
   );

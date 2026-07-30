@@ -346,7 +346,7 @@ export function PaymentRequestDetailedInfo({
       <div className="flex flex-col gap-5">
         <div>
           <FieldLabel htmlFor={idBillNo} editing={isEditing}>
-            Bill No.
+            Payment No.
           </FieldLabel>
           {isEditing ? (
             <>

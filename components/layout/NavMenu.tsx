@@ -48,7 +48,7 @@ function buildMenuSections(pettyCashEnabled: boolean): NavMenuSection[] {
   }
   sections.push({
     title: "Payment Request",
-    items: [{ href: "/", label: "Bills", icon: "local_atm" }],
+    items: [{ href: "/", label: "Payments", icon: "local_atm" }],
   });
   return sections;
 }

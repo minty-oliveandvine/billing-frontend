@@ -36,7 +36,7 @@ export default function ProfilePage() {
 
   const hasEntity = !!auth?.entityId;
   const backHref = hasEntity ? "/" : `${MODULE1_URL}/entity`;
-  const backLabel = hasEntity ? "Bills" : "Entity List";
+  const backLabel = hasEntity ? "Payments" : "Entity List";
 
   return (
     <div className="flex min-h-dvh min-h-screen min-w-0 max-w-full flex-col overflow-x-clip bg-white pb-[env(safe-area-inset-bottom,0px)]">

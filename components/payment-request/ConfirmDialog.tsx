@@ -26,9 +26,15 @@ const dangerClass = `box-border h-12 min-h-[48px] w-full cursor-pointer rounded-
 /** Secondary-color primary button (e.g. an acknowledgement "OK"). */
 const primaryClass = `box-border h-12 min-h-[48px] w-full cursor-pointer rounded-lg border border-transparent bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 ${focusRing} sm:h-11 sm:min-h-[44px] sm:w-auto`;
 
-function overlayClassFor(zIndex: number): string {
-  return `fixed inset-0 z-[${zIndex}] flex items-center justify-center overflow-x-hidden overscroll-x-none bg-black/45 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:p-4`;
-}
+/**
+ * The z-index is applied as an inline style, not a `z-[${zIndex}]` class:
+ * Tailwind only generates arbitrary values it can see as literal text at build
+ * time, so an interpolated class produces no CSS and the overlay would fall back
+ * to `z-index: auto` — letting positioned page content paint (and take clicks)
+ * above the backdrop.
+ */
+const OVERLAY_CLASS =
+  "fixed inset-0 flex items-center justify-center overflow-x-hidden overscroll-x-none bg-black/45 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:p-4";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -88,7 +94,8 @@ export function ConfirmDialog({
 
   return createPortal(
     <div
-      className={overlayClassFor(zIndex)}
+      className={OVERLAY_CLASS}
+      style={{ zIndex }}
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !pending) onClose();

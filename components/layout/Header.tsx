@@ -4,6 +4,9 @@ import type { ReactNode } from "react";
 import { NavMenu } from "./NavMenu";
 import { ProfileInitialsBadge } from "./ProfileInitialsBadge";
 
+/** One step in the header trail. No `href` on the last one — you are already there. */
+export type Crumb = { label: string; href?: string };
+
 type HeaderProps = {
   title?: string;
   showLogo?: boolean;
@@ -11,6 +14,15 @@ type HeaderProps = {
   /** When set, shows a back link to the payment request dashboard (Bills table). Title is not linked to home. */
   backHref?: string;
   backLabel?: string;
+  /**
+   * A breadcrumb trail, replacing the back-link-plus-title arrangement.
+   *
+   * The two say different things and the portal needs the second: `backHref` gives ONE
+   * step back, which is all a two-level page needs, but "Billing account" sits under
+   * Billing which sits under My Profile, and a lone "‹ Billing" hides where that is.
+   * The last crumb is the page and is not a link.
+   */
+  crumbs?: Crumb[];
   statusBadge?: ReactNode;
   titleActions?: ReactNode;
   navItems?: { href: string; label: string }[];
@@ -31,6 +43,7 @@ export function Header({
   brandHref,
   backHref,
   backLabel = "Payments",
+  crumbs,
   statusBadge,
   titleActions,
   navItems,
@@ -53,7 +66,50 @@ export function Header({
     </>
   );
 
-  const leftSection = showBack && backHref ? (
+  const trail = crumbs?.length ? (
+    <nav
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5"
+      aria-label="Breadcrumb"
+    >
+      <span
+        className="material-symbols-outlined -ml-1 shrink-0 text-[20px] leading-none text-[#737A87] sm:text-[22px]"
+        aria-hidden
+      >
+        chevron_left
+      </span>
+      {crumbs.map((crumb, i) => {
+        const isLast = i === crumbs.length - 1;
+        return (
+          <span key={`${crumb.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
+            {i > 0 ? (
+              <span className="shrink-0 text-sm text-[#9EA6B0]" aria-hidden>
+                ›
+              </span>
+            ) : null}
+            {isLast || !crumb.href ? (
+              <span
+                aria-current={isLast ? "page" : undefined}
+                className="min-w-0 truncate text-[15px] font-bold text-[#292E38] sm:text-base"
+              >
+                {crumb.label}
+              </span>
+            ) : (
+              <Link
+                href={crumb.href}
+                className="min-w-0 truncate text-[15px] text-[#737A87] transition-colors hover:text-secondary"
+              >
+                {crumb.label}
+              </Link>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  ) : null;
+
+  const leftSection = trail ? (
+    trail
+  ) : showBack && backHref ? (
     <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 sm:gap-3">
       <Link href={backHref} className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary transition-colors hover:text-secondary sm:text-base">
         <span className="material-symbols-outlined text-[22px] leading-none sm:text-[24px]" aria-hidden>

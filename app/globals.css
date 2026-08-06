@@ -106,6 +106,151 @@ body {
   }
 }
 
+/*
+ * "Manage subscriptions" table grid (components/profile/ManageSubscriptionsContent.tsx).
+ *
+ * Plain CSS rather than Tailwind utilities, and deliberately. Expressing these tracks as
+ * classes meant a ~200-character arbitrary value like
+ * `lg:grid-cols-[minmax(0,390fr)_..._44px]`, which only exists in the stylesheet once
+ * Tailwind has SCANNED the file that mentions it. A running dev server that scanned
+ * before the change does not have it — and the failure is silent and confusing rather
+ * than absent: with no `grid-template-columns`, the module cell's `span 3` invents three
+ * implicit columns and Entity / Subscriber / Country flow across them, which looks like
+ * a layout somebody designed. Written here, the rules exist unconditionally.
+ *
+ * The track widths are the design's own pixel widths used as `fr`, so the ratios ARE the
+ * spec. The three module tracks also carry a FLOOR: at 1024px the ratio alone gives
+ * Modules ~113px, which clips "Payment Request". Below the floors the first three columns
+ * give up the difference instead — and they WRAP rather than truncate, so a long entity
+ * name, a long subscriber or "Hong Kong SAR China" is always readable in full. That is
+ * why `.subs-row` aligns its cells to `start`: a cell that has wrapped to three lines
+ * must not drag its neighbours' first line down with it.
+ *
+ * `.subs-modules` is ONE cell spanning the last three tracks, because an entity can have
+ * Petty Cash active and Bill Payment on trial — each on its own line. `.subs-module-line`
+ * repeats the SAME three tracks with the SAME gap, which is what puts those lines under
+ * the headers they belong to: the cell's width is `modules + gap + status + gap + next`,
+ * so dividing what is left after the two gaps the same way reproduces the parent's tracks
+ * exactly. The floors must stay identical in both or they part company at the minimum.
+ */
+.subs-head {
+  display: none;
+}
+
+.subs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.subs-module-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+}
+
+/* Stacked layout: the date drops to its own full-width line under name + badge. */
+.subs-module-date {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 64rem) {
+  .subs-head,
+  .subs-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 390fr) minmax(0, 200fr) minmax(0, 150fr)
+      minmax(7.5rem, 190fr) minmax(7rem, 160fr) minmax(9rem, 180fr) 44px;
+    column-gap: 1rem;
+  }
+
+  .subs-head {
+    align-items: center;
+  }
+
+  .subs-row {
+    align-items: start;
+  }
+
+  .subs-modules {
+    grid-column: span 3 / span 3;
+  }
+
+  .subs-module-line {
+    grid-template-columns:
+      minmax(7.5rem, 190fr) minmax(7rem, 160fr) minmax(9rem, 180fr);
+    column-gap: 1rem;
+  }
+
+  .subs-module-date {
+    grid-column: auto;
+  }
+}
+
+/*
+ * Billing tab table (components/profile/BillingContent.tsx). Same reasoning as
+ * `.subs-row` above: real CSS so the tracks cannot go missing with a stale scan.
+ * Four columns and the kebab gutter; Name gets the room because entity names are the
+ * only arbitrary-length value here.
+ */
+.bill-head {
+  display: none;
+}
+
+.bill-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+@media (min-width: 64rem) {
+  .bill-head,
+  .bill-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 390fr) minmax(0, 155fr) minmax(8rem, 194fr) minmax(6rem, 158fr) 44px;
+    column-gap: 1rem;
+  }
+
+  .bill-head {
+    align-items: center;
+  }
+
+  /* Rows are top-aligned: the Name cell is three lines (name, payment method, expiry)
+     and the other four are one, so centring would float them against its middle. */
+  .bill-row {
+    align-items: start;
+  }
+}
+
+/*
+ * Invoices table (components/profile/InvoicesContent.tsx). Real CSS for the same reason
+ * as `.subs-row` and `.bill-row` — see the note above `.subs-head`.
+ */
+.inv-head {
+  display: none;
+}
+
+.inv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.375rem;
+}
+
+@media (min-width: 64rem) {
+  .inv-head,
+  .inv-row {
+    display: grid;
+    grid-template-columns:
+      minmax(7rem, 120fr) minmax(7rem, 130fr) minmax(0, 300fr)
+      minmax(7rem, 130fr) minmax(6rem, 110fr) minmax(8rem, 160fr) 44px;
+    column-gap: 1rem;
+    align-items: center;
+  }
+}
+
 /* Hide native date icon; custom button + input onClick both call showPicker() (see lib/openDatePicker.ts). */
 input[type="date"].pr-date-input {
   cursor: pointer;

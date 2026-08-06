@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EasyViewToggle, Header } from "@/components/layout";
 import { PaymentRequestView } from "@/components/payment-request";
+import { SubscriptionNoticeModal } from "@/components/SubscriptionNoticeModal";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
 import { fetchXeroStatus, fetchMe } from "@/lib/api";
+import {
+  claimSubscriptionNotice,
+  fetchSubscriptionNotice,
+  type SubscriptionNotice,
+} from "@/lib/subscriptionNotice";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 import { API_BASE } from "@/lib/apiBase";
 
@@ -25,6 +31,7 @@ export default function Home() {
   const [auth, setAuthState] = useState<AuthInfo | null>(null);
   const [xeroConnected, setXeroConnected] = useState<boolean>(false);
   const [easyView, setEasyViewState] = useState(true);
+  const [notice, setNotice] = useState<SubscriptionNotice | null>(null);
 
   useEffect(() => {
     const stored = readStoredEasyView();
@@ -47,6 +54,28 @@ export default function Home() {
       fetchXeroStatus().then(setXeroConnected);
       fetchMe().then((profile) => console.log("Profile:", profile));
     }
+  }, []);
+
+  // Subscription notice — once per entity per session, so the claim is checked
+  // before the request is made rather than after. Never blocks or breaks the page:
+  // fetchSubscriptionNotice swallows every failure and returns null.
+  //
+  // The ref is load-bearing, not tidiness. React invokes effects twice in
+  // development, and claimSubscriptionNotice CONSUMES a one-shot flag: the second
+  // run finds it already spent and returns early. So the first run's response is the
+  // only one there will ever be — cancelling it on cleanup (the usual pattern) threw
+  // away the only result and the modal never appeared. Guarding on a ref instead
+  // means the work happens exactly once and its result always lands; the ref
+  // survives the simulated remount, so this cannot double-fetch either.
+  const noticeStarted = useRef(false);
+  useEffect(() => {
+    if (noticeStarted.current) return;
+    const a = getAuth();
+    if (!a?.token || !a.entityId) return;
+    if (!claimSubscriptionNotice(a.entityId)) return;
+
+    noticeStarted.current = true;
+    fetchSubscriptionNotice().then((n) => setNotice(n));
   }, []);
 
   const handleLogout = async () => {
@@ -98,6 +127,7 @@ export default function Home() {
         xeroConnected={xeroConnected}
       />
       <PaymentRequestView easyView={easyView} />
+      <SubscriptionNoticeModal notice={notice} onClose={() => setNotice(null)} />
     </div>
   );
 }

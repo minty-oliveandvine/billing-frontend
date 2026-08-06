@@ -1,17 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   paymentRequestDetailCancelButtonClass,
   paymentRequestDetailSaveButtonClass,
 } from "@/components/payment-request/PaymentRequestDetailedInfo";
+import { ProfilePortalLinks } from "@/components/profile/ProfilePortalLinks";
 import { ApiError, fetchAuthMe, updateProfile, type AuthMeUser } from "@/lib/api";
-import { getAuth } from "@/lib/auth";
-import { useUserRole } from "@/lib/useUserRole";
 
 export type MyProfileContentProps = {
   onLogOut: () => void;
 };
+
+/**
+ * The profile's card language, shared by the email and name cards — and matched by
+ * `ProfilePortalLinks` above them, so all five cards on the screen read as one stack.
+ *
+ * The icon tiles that used to head each card are gone. With three navigation cards now
+ * sitting above these two, a column of teal squares was doing the opposite of its job:
+ * it made every card look equally clickable, when only three of them are.
+ *
+ * The email card's Edit needed the backend fixed before it could exist. Minty signs
+ * users in on `User.username` (auth/routes/login.py) and sets it from the email at
+ * registration, while password reset looks up `User.email` — and `PUT /profile/me` used
+ * to write `email` alone, which would have left an account signing in under the old
+ * address and resetting under the new one. `update_user_profile` now moves the login
+ * handle with the address and refuses one another account holds; this card is safe on
+ * top of that, not instead of it.
+ */
+const PROFILE_CARD_CLASS =
+  "rounded-[14px] border border-gray-200 bg-white px-5 py-[18px] shadow-[0_4px_14px_rgba(15,23,41,0.05)]";
+const PROFILE_CARD_LABEL_CLASS =
+  "block text-[15px] font-bold uppercase leading-tight text-[#16202E] sm:text-base";
+const PROFILE_CARD_VALUE_CLASS = "text-[15px] font-bold text-[#6B7280]";
+const PROFILE_CARD_INPUT_CLASS =
+  "mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-[15px] font-bold text-[#16202E] focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60";
 
 function initialsFromNames(first?: string | null, last?: string | null): string {
   const f = (first ?? "").trim();
@@ -30,21 +53,7 @@ function displayName(me: AuthMeUser | null): string {
   return parts.length ? parts.join(" ") : "—";
 }
 
-/** Bill role from JWT, formatted for display (e.g. admin → Admin, super_admin → Super Admin). */
-function formatRoleForDisplay(role: string | null): string {
-  if (!role?.trim()) return "—";
-  return role
-    .trim()
-    .toLowerCase()
-    .split(/[\s_-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
-  const { role } = useUserRole();
-  const [entityName, setEntityName] = useState("");
   const [profile, setProfile] = useState<AuthMeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,12 +62,11 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  /** The email card edits independently of the name card — one Edit each, as designed. */
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [editEmail, setEditEmail] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useLayoutEffect(() => {
-    setEntityName((getAuth()?.entityName ?? "").trim());
-  }, []);
 
   const load = useCallback(async () => {
     setError(null);
@@ -97,10 +105,39 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
     setSaveError(null);
   };
 
-  const handleSaveProfile = async () => {
-    if (!profile?.email) {
+  const handleEditEmailClick = () => {
+    if (!profile) return;
+    setEditEmail((profile.email ?? "").trim());
+    setSaveError(null);
+    setIsEditingEmail(true);
+  };
+
+  const handleCancelEmailEdit = () => {
+    setIsEditingEmail(false);
+    setSaveError(null);
+  };
+
+  /**
+   * The one write path, shared by both cards.
+   *
+   * `PUT /profile/me` replaces all three fields, so whichever card is being edited has
+   * to send the other two as they stand — otherwise saving a new email would blank the
+   * name. Each card passes only its own patch and the rest comes from `profile`.
+   *
+   * Server-side validation is what actually decides an email is acceptable: it refuses
+   * addresses another account holds and keeps the login handle in step (see
+   * `update_user_profile`). A 422 comes back with copy meant for a person, and
+   * `ApiError` passes that through untouched, so it is shown as-is.
+   */
+  const persistProfile = async (patch: {
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+  }): Promise<boolean> => {
+    const email = (patch.email ?? profile?.email ?? "").trim();
+    if (!email) {
       setSaveError("We'll need an email here.");
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -108,28 +145,40 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
 
     try {
       await updateProfile({
-        email: profile.email.trim(),
-        first_name: editFirstName.trim(),
-        last_name: editLastName.trim(),
+        email,
+        first_name: (patch.first_name ?? profile?.first_name ?? "").trim(),
+        last_name: (patch.last_name ?? profile?.last_name ?? "").trim(),
       });
 
-      setIsEditing(false);
       setRefreshTick((n) => n + 1);
       setUpdateHint(true);
       window.setTimeout(() => setUpdateHint(false), 2500);
+      return true;
     } catch (e) {
       setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSaveProfile = async () => {
+    const saved = await persistProfile({
+      first_name: editFirstName,
+      last_name: editLastName,
+    });
+    // Stay in the form when it failed, so the rejected value is still there to fix.
+    if (saved) setIsEditing(false);
+  };
+
+  const handleSaveEmail = async () => {
+    const saved = await persistProfile({ email: editEmail });
+    if (saved) setIsEditingEmail(false);
+  };
+
   const abbr = initialsFromNames(profile?.first_name, profile?.last_name);
   const emailRaw = (profile?.email ?? "").trim();
   const emailDisplay = loading ? "…" : emailRaw || "—";
-  /** No entity selected (e.g. profile opened from module selection with token only) → show an em dash. */
-  const entityDisplay = entityName || "—";
-  const roleDisplay = formatRoleForDisplay(role);
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 pb-8 pt-4 sm:px-6 sm:pt-6">
@@ -142,28 +191,7 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
         <h1 className="mt-5 text-xl font-bold text-black sm:text-2xl">{loading ? "…" : displayName(profile)}</h1>
       </div>
 
-      <section className="mt-4 w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5" aria-label="Entity and role">
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-[#54D3DA]" aria-hidden>
-              <span className="material-symbols-outlined text-[22px] leading-none [font-variation-settings:'FILL'_1,'wght'_400,'GRAD'_0,'opsz'_24]">
-                corporate_fare
-              </span>
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/60">Entity</p>
-              <p className="mt-1 break-words text-base font-semibold text-black" aria-label={entityName ? "Entity name" : "No entity selected"}>
-                {entityDisplay}
-              </p>
-            </div>
-          </div>
-          <div className="min-w-0 shrink-0 self-center sm:pl-1">
-            <span className="inline-flex items-center rounded-full bg-[#54D3DA]/10 px-2.5 py-1 text-xs font-semibold text-secondary sm:text-sm">
-              {roleDisplay}
-            </span>
-          </div>
-        </div>
-      </section>
+      <ProfilePortalLinks />
 
       {error ? (
         <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
@@ -177,71 +205,91 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-3">
-        <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex w-full items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-[#54D3DA]" aria-hidden>
-                <span className="material-symbols-outlined text-[22px] leading-none [font-variation-settings:'FILL'_1,'wght'_400,'GRAD'_0,'opsz'_24]">
-                  mail
-                </span>
-              </span>
-            </div>
-            <div className="min-w-0 w-full">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/60">Email address</p>
-              <p className="mt-1 break-all text-base font-semibold text-black">{emailDisplay}</p>
-            </div>
+      <div className="mt-4 flex flex-col gap-[18px]">
+        <section className={PROFILE_CARD_CLASS} aria-label="Email address">
+          <div className="flex items-start justify-between gap-4">
+            {!isEditingEmail ? (
+              <h2 className={PROFILE_CARD_LABEL_CLASS}>Email address</h2>
+            ) : (
+              <label htmlFor="email" className={PROFILE_CARD_LABEL_CLASS}>
+                Email address
+              </label>
+            )}
+            {!isEditingEmail ? (
+              <button type="button" onClick={handleEditEmailClick} disabled={loading} className="shrink-0 cursor-pointer select-none text-sm font-semibold text-[#2E9B9B] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50" title="Edit email address">
+                Edit
+              </button>
+            ) : (
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <button type="button" onClick={handleCancelEmailEdit} disabled={saving} className={paymentRequestDetailCancelButtonClass}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveEmail} disabled={saving} className={paymentRequestDetailSaveButtonClass}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            )}
           </div>
+          {!isEditingEmail ? (
+            <p className={`mt-3 break-all ${PROFILE_CARD_VALUE_CLASS}`}>{emailDisplay}</p>
+          ) : (
+            <>
+              <input id="email" type="email" inputMode="email" autoComplete="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} disabled={saving} className={PROFILE_CARD_INPUT_CLASS} placeholder="you@company.com" />
+              {/* Said before the change, not after: this is the address the account signs
+                  in and resets its password with, and that is not obvious from a field
+                  labelled "email address". */}
+              <p className="mt-2 text-xs text-primary/70">
+                This is what you sign in and reset your password with — it changes both.
+              </p>
+            </>
+          )}
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex w-full items-center justify-between gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-[#54D3DA]" aria-hidden>
-                <span className="material-symbols-outlined text-[22px] leading-none [font-variation-settings:'FILL'_1,'wght'_400,'GRAD'_0,'opsz'_24]">
-                  account_circle
-                </span>
-              </span>
-              {!isEditing ? (
-                <button type="button" onClick={handleEditClick} disabled={loading} className="shrink-0 cursor-pointer select-none text-sm font-semibold text-secondary transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50" title="Edit name">
-                  Edit
-                </button>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={handleCancelEdit} disabled={saving} className={paymentRequestDetailCancelButtonClass}>
-                    Cancel
-                  </button>
-                  <button type="button" onClick={handleSaveProfile} disabled={saving} className={paymentRequestDetailSaveButtonClass}>
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              )}
-            </div>
+        <section className={PROFILE_CARD_CLASS} aria-label="Name">
+          <div className="flex items-start justify-between gap-4">
             {!isEditing ? (
-              <div className="grid w-full grid-cols-2 gap-4 text-left">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/55">First name</p>
-                  <p className="mt-0.5 font-semibold text-black">{loading ? "…" : (profile?.first_name ?? "").trim() || "—"}</p>
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-10 text-left">
+                <div className="min-w-0">
+                  <h2 className={PROFILE_CARD_LABEL_CLASS}>First name</h2>
+                  <p className={`mt-1.5 truncate ${PROFILE_CARD_VALUE_CLASS}`}>
+                    {loading ? "…" : (profile?.first_name ?? "").trim() || "—"}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/55">Last name</p>
-                  <p className="mt-0.5 font-semibold text-black">{loading ? "…" : (profile?.last_name ?? "").trim() || "—"}</p>
+                <div className="min-w-0">
+                  <h2 className={PROFILE_CARD_LABEL_CLASS}>Last name</h2>
+                  <p className={`mt-1.5 truncate ${PROFILE_CARD_VALUE_CLASS}`}>
+                    {loading ? "…" : (profile?.last_name ?? "").trim() || "—"}
+                  </p>
                 </div>
               </div>
             ) : (
-              <div className="grid w-full grid-cols-2 gap-4 text-left">
-                <div>
-                  <label htmlFor="firstName" className="text-[11px] font-semibold uppercase tracking-wide text-primary/55">
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 text-left">
+                <div className="min-w-0">
+                  <label htmlFor="firstName" className={PROFILE_CARD_LABEL_CLASS}>
                     First name
                   </label>
-                  <input id="firstName" type="text" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} disabled={saving} className="mt-0.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-black focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60" placeholder="First name" />
+                  <input id="firstName" type="text" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} disabled={saving} className={PROFILE_CARD_INPUT_CLASS} placeholder="First name" />
                 </div>
-                <div>
-                  <label htmlFor="lastName" className="text-[11px] font-semibold uppercase tracking-wide text-primary/55">
+                <div className="min-w-0">
+                  <label htmlFor="lastName" className={PROFILE_CARD_LABEL_CLASS}>
                     Last name
                   </label>
-                  <input id="lastName" type="text" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} disabled={saving} className="mt-0.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-black focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60" placeholder="Last name" />
+                  <input id="lastName" type="text" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} disabled={saving} className={PROFILE_CARD_INPUT_CLASS} placeholder="Last name" />
                 </div>
+              </div>
+            )}
+            {!isEditing ? (
+              <button type="button" onClick={handleEditClick} disabled={loading} className="shrink-0 cursor-pointer select-none text-sm font-semibold text-[#2E9B9B] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50" title="Edit name">
+                Edit
+              </button>
+            ) : (
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <button type="button" onClick={handleCancelEdit} disabled={saving} className={paymentRequestDetailCancelButtonClass}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveProfile} disabled={saving} className={paymentRequestDetailSaveButtonClass}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
               </div>
             )}
           </div>

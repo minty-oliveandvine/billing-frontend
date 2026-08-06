@@ -104,6 +104,28 @@ export function getEmailFromToken(): string | null {
 }
 
 /**
+ * Returns the `sid` claim — an opaque id for the Minty sign-in this token belongs
+ * to — or null if absent. Minty rewrites it on every login, so it is how this app
+ * distinguishes "same sign-in as before" from "signed out and back in": it cannot
+ * see the Flask session that actually holds that state.
+ *
+ * Not a credential and not usable as one; it only ever answers that question.
+ * Tokens minted outside a request context carry an empty sid, treated as absent.
+ */
+export function getLoginSidFromToken(): string | null {
+  try {
+    const auth = getAuth();
+    if (!auth?.token) return null;
+    const payload = decodeJwtPayload(auth.token);
+    if (!payload) return null;
+    if (typeof payload.sid !== "string" || !payload.sid) return null;
+    return payload.sid;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns true if the JWT stored in the cookie will expire within
  * `thresholdSeconds` seconds (default 120). Returns false if the token is
  * missing, malformed, or has no `exp` claim. Never throws.

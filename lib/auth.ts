@@ -180,9 +180,22 @@ export function isTokenExpired(): boolean {
  * `login_view` sends them to the real login form. Either way no manual
  * cookie clearing is required.
  *
- * Falls back to plain Module 1 root if no entity context is available.
+ * Without an entity it uses the entity-less form of the same route rather than
+ * Minty's root. The payer portal is reached with an unscoped token (Select
+ * Company → My Profile sets no entity cookie), so root would have been the
+ * normal outcome there — dropping the user on another app's home page, having
+ * just cleared the cookie that would have let them come back.
+ *
+ * Fires once. Several requests in flight fail together, and each one calling
+ * this would reassign `location.href` while the first navigation is already
+ * under way.
  */
+let redirecting = false;
+
 export function redirectToLogin() {
+  if (redirecting) return;
+  redirecting = true;
+
   const entityId =
     typeof document !== "undefined"
       ? Object.fromEntries(
@@ -199,17 +212,16 @@ export function redirectToLogin() {
   clearAuth();
 
   const base = resolveMintyModuleUrl().replace(/\/$/, "");
-  if (entityId) {
-    const here =
-      typeof window !== "undefined"
-        ? window.location.pathname + window.location.search
-        : "/";
-    const next = encodeURIComponent(here);
-    window.location.href = `${base}/entity/${entityId}/billing-relogin?next=${next}`;
-    return;
-  }
+  const here =
+    typeof window !== "undefined"
+      ? window.location.pathname + window.location.search
+      : "/";
+  const next = encodeURIComponent(here);
+  const path = entityId
+    ? `/entity/${entityId}/billing-relogin`
+    : "/billing-relogin";
 
-  window.location.href = `${base}/`;
+  window.location.href = `${base}${path}?next=${next}`;
 }
 
 /**
@@ -220,8 +232,26 @@ export function redirectToLogin() {
  * Returns false if the token is already expired, missing, or the request failed.
  *
  * Uses raw fetch (not apiFetch) to avoid a circular import with api.ts.
+ *
+ * Single-flight: concurrent callers share one request. A screen like My Profile
+ * fires several calls at mount (the header's initials badge, the profile card,
+ * the Xero indicator), and each refreshing separately meant later ones spending
+ * the token a successful refresh had already rotated away — and, when the
+ * refresh failed, several racing to clear the cookie, so whichever call checked
+ * auth last reported "you're signed out" rather than the session timing out.
  */
-export async function refreshToken(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+export function refreshToken(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = performTokenRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function performTokenRefresh(): Promise<boolean> {
   const auth = getAuth();
   if (!auth?.token) return false;
   try {

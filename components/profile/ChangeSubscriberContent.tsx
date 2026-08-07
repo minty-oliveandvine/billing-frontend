@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
+  inviteAdminToEntity,
   fetchSubscriberOptions,
   PortalError,
   type SubscriberOptions,
@@ -36,8 +37,11 @@ const SECTION = "text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9A
 
 const UNAVAILABLE_CHANGE =
   "Handing an entity to a different payer isn't wired up yet — the period already paid for, the billing anchor and the card all move with it.";
-const UNAVAILABLE_INVITE =
-  "Inviting someone isn't wired up here yet — Settings › Users is where people are added to a company today.";
+/**
+ * The invite is LIVE; changing the subscriber is not. They look adjacent on this screen
+ * and are not the same act: inviting adds a member to the company, which is reversible
+ * and moves no money. Handing over the bill has to survive the period already paid for.
+ */
 
 function Initials({ name, email }: { name: string; email: string }) {
   const source = (name || email || "?").trim();
@@ -64,6 +68,29 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [invite, setInvite] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [invited, setInvited] = useState<string | null>(null);
+
+  const sendInvite = async () => {
+    if (!entityId || !invite.trim()) return;
+    setInviting(true);
+    setInviteError(null);
+    setInvited(null);
+    try {
+      setInvited(await inviteAdminToEntity(entityId, invite.trim()));
+      // Cleared only on success, so a rejected address stays in the box to be corrected.
+      setInvite("");
+    } catch (e) {
+      setInviteError(
+        e instanceof PortalError
+          ? e.message
+          : "That invitation didn't send. Let's try again?",
+      );
+    } finally {
+      setInviting(false);
+    }
+  };
 
   // Reached without an entity — someone typed the URL, or a link lost its query string.
   // DERIVED rather than pushed into state from the effect below: it is a fact about the
@@ -208,13 +235,26 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
             />
             <button
               type="button"
-              disabled
-              title={UNAVAILABLE_INVITE}
-              className="shrink-0 cursor-not-allowed rounded-lg px-3 py-1.5 text-[15px] font-semibold text-[#B4BAC3]"
+              onClick={sendInvite}
+              disabled={inviting || !invite.trim()}
+              className="shrink-0 cursor-pointer rounded-lg px-3 py-1.5 text-[15px] font-semibold text-secondary transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:text-[#B4BAC3]"
             >
-              Send invite
+              {inviting ? "Sending…" : "Send invite"}
             </button>
           </div>
+
+          {/* The server's own words. A 422 here is a stated reason — already a member,
+              already invited — not a failure to paper over. */}
+          {inviteError ? (
+            <p className="mt-2 text-sm text-[#B42318]" role="alert">
+              {inviteError}
+            </p>
+          ) : null}
+          {invited ? (
+            <p className="mt-2 text-sm text-[#267347]" role="status">
+              {invited}
+            </p>
+          ) : null}
           </>
         )}
 

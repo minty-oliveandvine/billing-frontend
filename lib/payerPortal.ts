@@ -354,6 +354,64 @@ export async function fetchPayerBilling(signal?: AbortSignal): Promise<PayerBill
 }
 
 /**
+ * Invite someone into an entity as an ADMIN. Resolves to the server's confirmation.
+ *
+ * This adds a MEMBER; it does not move the payer. Handing the bill over is a separate
+ * flow that has to survive the period already paid for, and is still switched off.
+ *
+ * A 422 carries a stated reason the form shows against the field — "already a member",
+ * "an invitation is already pending" — so its message passes through untouched.
+ */
+export async function inviteAdminToEntity(
+  entityId: string,
+  email: string,
+): Promise<string> {
+  const auth = getAuth();
+  if (!auth?.token) throw new PortalError(401, MESSAGES[401]);
+
+  let token = auth.token;
+  if (isTokenExpiringSoon() && (await refreshToken())) {
+    token = getAuth()?.token ?? token;
+  }
+
+  const url = `${mintyOrigin()}/api/me/subscriptions/invite-admin`;
+  const send = (bearer: string) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ entity: entityId, email }),
+    });
+
+  let res: Response;
+  try {
+    res = await send(token);
+  } catch {
+    throw new PortalError(0, "I couldn't reach the server just now. Let's try again?");
+  }
+  if (res.status === 401 && (await refreshToken())) {
+    const fresh = getAuth()?.token;
+    if (fresh) res = await send(fresh);
+  }
+
+  const body = (await res.json().catch(() => null)) as
+    | { ok?: boolean; message?: string; error?: string }
+    | null;
+
+  if (!res.ok || !body?.ok) {
+    throw new PortalError(
+      res.status,
+      body?.error && !/^[a-z_]+$/.test(body.error)
+        ? body.error
+        : MESSAGES[res.status] ?? "That invitation didn't send. Let's try again?",
+    );
+  }
+  return body.message ?? "Invitation sent.";
+}
+
+/**
  * Opens Stripe's payment-method form and returns the URL to send the browser to.
  *
  * The card is captured by STRIPE, never by this app — no PAN or CVC passes through here,

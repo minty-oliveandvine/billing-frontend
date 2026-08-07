@@ -164,27 +164,26 @@ export function isTokenExpired(): boolean {
 }
 
 /**
- * Best-effort silent re-handoff to Flask Module 1 to obtain a fresh billing JWT.
- *
- * Inputs:
- *   - Reads `billing_entity_id` from the cookie jar to preserve the entity scope.
- *   - Reads `window.location.pathname + search` so the user lands back on the
- *     same page they were on (assuming the Flask session is still valid).
+ * Hands the user back to Flask Module 1 when this app's billing JWT has run out.
  *
  * Output: navigates the browser to
- *   <MODULE1_URL>/entity/<entity_id>/billing-relogin?next=<encoded current path>
+ *   <MODULE1_URL>/entity/<entity_id>/billing-relogin   (or /billing-relogin)
  *
- * If Flask session is still valid (typical case), Flask mints a new JWT and
- * redirects straight back to /landing → cookie restored → user resumes with
- * zero clicks. If the Flask session is also expired, Flask-Login's
- * `login_view` sends them to the real login form. Either way no manual
- * cookie clearing is required.
+ * Flask sends them on to its own landing page: the entity list if the Flask
+ * session is still alive (the usual case — it outlives the 30-minute JWT), the
+ * login form if it isn't. Picking a company there mints a fresh token through
+ * the normal handoff, so no manual cookie clearing is ever required.
  *
- * Without an entity it uses the entity-less form of the same route rather than
- * Minty's root. The payer portal is reached with an unscoped token (Select
- * Company → My Profile sets no entity cookie), so root would have been the
- * normal outcome there — dropping the user on another app's home page, having
- * just cleared the cookie that would have let them come back.
+ * Not silent, and no longer a round trip back to this app. It used to send
+ * `?next=<current path>` asking to be returned to the page it was on, and Flask
+ * replayed that path on ITS origin — so an expiry on /profile 404'd on Minty,
+ * with the cookie already gone. Flask ignores `next` now, and sending one would
+ * only describe a promise neither side keeps.
+ *
+ * The entity id still comes from the cookie jar, and without one this uses the
+ * entity-less form of the same route: the payer portal is reached with an
+ * unscoped token (Select Company → My Profile sets no entity cookie), and the
+ * fallback used to be Minty's bare root.
  *
  * Fires once. Several requests in flight fail together, and each one calling
  * this would reassign `location.href` while the first navigation is already
@@ -212,16 +211,11 @@ export function redirectToLogin() {
   clearAuth();
 
   const base = resolveMintyModuleUrl().replace(/\/$/, "");
-  const here =
-    typeof window !== "undefined"
-      ? window.location.pathname + window.location.search
-      : "/";
-  const next = encodeURIComponent(here);
   const path = entityId
     ? `/entity/${entityId}/billing-relogin`
     : "/billing-relogin";
 
-  window.location.href = `${base}${path}?next=${next}`;
+  window.location.href = `${base}${path}`;
 }
 
 /**

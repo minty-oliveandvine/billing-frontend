@@ -166,24 +166,17 @@ export function isTokenExpired(): boolean {
 /**
  * Hands the user back to Flask Module 1 when this app's billing JWT has run out.
  *
- * Output: navigates the browser to
- *   <MODULE1_URL>/entity/<entity_id>/billing-relogin   (or /billing-relogin)
+ * Output: navigates the browser to `<MODULE1_URL>/` — Minty's landing page, and
+ * nothing more specific. It forwards to the entity list when the Flask session
+ * is still alive (the usual case: it outlives the 30-minute JWT) and to the login
+ * form when it isn't. Picking a company there mints a fresh token through the
+ * normal handoff, so no manual cookie clearing is ever required.
  *
- * Flask sends them on to its own landing page: the entity list if the Flask
- * session is still alive (the usual case — it outlives the 30-minute JWT), the
- * login form if it isn't. Picking a company there mints a fresh token through
- * the normal handoff, so no manual cookie clearing is ever required.
- *
- * Not silent, and no longer a round trip back to this app. It used to send
- * `?next=<current path>` asking to be returned to the page it was on, and Flask
- * replayed that path on ITS origin — so an expiry on /profile 404'd on Minty,
- * with the cookie already gone. Flask ignores `next` now, and sending one would
- * only describe a promise neither side keeps.
- *
- * The entity id still comes from the cookie jar, and without one this uses the
- * entity-less form of the same route: the payer portal is reached with an
- * unscoped token (Select Company → My Profile sets no entity cookie), and the
- * fallback used to be Minty's bare root.
+ * It used to go to `/entity/<id>/billing-relogin?next=<current path>` asking to
+ * be returned to the page it was on, and Flask replayed that path on ITS origin —
+ * so an expiry on /profile became a 404 on Minty, reached with the cookie already
+ * cleared. Root is the one URL on that origin this app can be sure of; a relogin
+ * route that only ever redirects there is a hop that can 404 on its own.
  *
  * Fires once. Several requests in flight fail together, and each one calling
  * this would reassign `location.href` while the first navigation is already
@@ -195,27 +188,8 @@ export function redirectToLogin() {
   if (redirecting) return;
   redirecting = true;
 
-  const entityId =
-    typeof document !== "undefined"
-      ? Object.fromEntries(
-          document.cookie
-            .split("; ")
-            .filter(Boolean)
-            .map((c) => {
-              const idx = c.indexOf("=");
-              return [c.slice(0, idx), decodeURIComponent(c.slice(idx + 1))];
-            }),
-        )[ENTITY_ID_KEY]
-      : "";
-
   clearAuth();
-
-  const base = resolveMintyModuleUrl().replace(/\/$/, "");
-  const path = entityId
-    ? `/entity/${entityId}/billing-relogin`
-    : "/billing-relogin";
-
-  window.location.href = `${base}${path}`;
+  window.location.href = `${resolveMintyModuleUrl().replace(/\/$/, "")}/`;
 }
 
 /**

@@ -189,7 +189,7 @@ export function InvoicesContent({ initialEntityId }: { initialEntityId?: string 
                 key={invoice.id}
                 className="inv-row flex flex-wrap gap-x-4 gap-y-1 px-4 py-4 sm:px-6"
               >
-                <span className="break-all text-[14.5px] font-semibold text-[#2E9B9B]">
+                <span className="break-all text-[14.5px] font-semibold text-[#333B45]">
                   {invoice.reference}
                 </span>
 

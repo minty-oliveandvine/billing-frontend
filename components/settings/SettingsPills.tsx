@@ -12,7 +12,7 @@ const TABS: { id: SettingsTabId; label: string }[] = [
   { id: "xero", label: "Entity & Integration" },
   { id: "entity", label: "Petty Cash Settings" },
   { id: "bill", label: "Payment Settings" },
-  { id: "modules", label: "Module" },
+  { id: "modules", label: "Module & Subscription" },
 ];
 
 export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {

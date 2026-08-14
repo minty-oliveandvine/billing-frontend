@@ -11,9 +11,9 @@ import Link from "next/link";
  * about the person rather than the company, so it is where the cross-entity view
  * belongs.
  *
- * Billing and Invoices are routed but not yet built (see their placeholder pages). They
- * are shown anyway, and marked, because a card that is coming is more honest than a
- * silently missing one — and the tab bar on the destination lists all three regardless.
+ * All three are built now. ``comingSoon`` survives from when Billing and Invoices were
+ * placeholders shown behind a badge — nothing sets it today, and it is kept only so the
+ * next unfinished card can be shown honestly rather than silently omitted.
  */
 
 type PortalLink = {
@@ -33,7 +33,11 @@ const LINKS: PortalLink[] = [
   {
     href: "/profile/billing",
     title: "Billing",
-    detail: "See what you're charged across all entities",
+    // The saved CARDS, not a charge summary — that reading now belongs to Invoices, and
+    // the per-entity table this tab used to carry is gone. "your invoices" keeps the
+    // account-wide scope the old "across all entities" was carrying: one billing account,
+    // one default card, every company on it.
+    detail: "Manage the cards your invoices are charged to",
   },
   {
     href: "/profile/invoices",

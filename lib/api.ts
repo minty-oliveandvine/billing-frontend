@@ -149,8 +149,26 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
   if (!res.ok) {
     if (res.status === 401) {
-      redirectToLogin();
-      throw new ApiError(401, "Our session timed out - let me take you back to login.");
+      // A 401 is not automatically an expired session, and treating it as one was worse
+      // than a wrong message: `redirectToLogin` sends the user back through the handoff,
+      // which re-mints the SAME token and lands them on the same screen, failing the same
+      // way. An endless loop, reported as "our session timed out".
+      //
+      // The token is the thing that can time out, so ask it — and note that
+      // `requireAuthenticatedSession` above has already tried to refresh it. Only a
+      // genuinely expired one is fixed by signing in again. Anything else is the server
+      // declining this caller for this request, which a fresh login cannot change, so it
+      // is reported and the page stays where it is.
+      if (isTokenExpired()) {
+        redirectToLogin();
+        throw new ApiError(401, "Our session timed out - let me take you back to login.");
+      }
+      const denied = await res.json().catch(() => null);
+      throw new ApiError(
+        401,
+        normalizeApiErrorDetail(denied?.detail ?? denied?.message, "").trim() ||
+          "You don't have access to that. If you've just been added to a company, try picking it again from the company list.",
+      );
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     const msg = resolveApiErrorMessage(

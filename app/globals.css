@@ -137,6 +137,15 @@ body {
   display: none;
 }
 
+/*
+ * Mobile: ONE column, and no gutter for the kebab — deliberately.
+ *
+ * This table renders its menu TWICE (see ManageSubscriptionsContent): a `lg:hidden` copy
+ * that rides with the entity name inside the first cell, and the last-child copy that
+ * only appears from `lg` up. So a second 44px track here reserves a lane for an element
+ * that is hidden at this width, and every cell — including the visible kebab — is pushed
+ * ~60px in from the right edge, out of line with the refresh button above it.
+ */
 .subs-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -190,19 +199,43 @@ body {
 }
 
 /*
- * Billing tab table (components/profile/BillingContent.tsx). Same reasoning as
+ * Billing tab table (components/profile/PaymentMethodsPanel.tsx). Same reasoning as
  * `.subs-row` above: real CSS so the tracks cannot go missing with a stale scan.
- * Four columns and the kebab gutter; Name gets the room because entity names are the
- * only arbitrary-length value here.
+ * Five columns and the kebab gutter. The payment method gets the room — it carries the
+ * cardholder and the date added under it — Type is next widest because it can run to
+ * "Credit card · Mastercard · Apple Pay", and Expiry is five characters forever.
  */
 .bill-head {
   display: none;
 }
 
+/*
+ * Mobile: the cells stack, and the kebab sits at the TOP RIGHT beside the payment
+ * method rather than flowing to the bottom of the pile.
+ *
+ * One column put it last — a lone centred ⋮ under four labelled lines, floating with
+ * nothing to attach it to and a full row's height away from the thing it acts on. A
+ * second 44px track that only the last child occupies keeps it where a row's actions
+ * belong, and costs the stacked cells nothing because they all stay in column one.
+ */
 .bill-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 0.5rem 1rem;
+}
+
+.bill-row > * {
+  grid-column: 1;
+}
+
+.bill-row > *:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  /* Cancels the button's 6px touch-target padding in the LAYOUT only, so row one is as
+     tall as its text rather than as tall as the button — see the note on `.subs-row`. */
+  margin-block: -0.375rem;
 }
 
 @media (min-width: 64rem) {
@@ -210,7 +243,8 @@ body {
   .bill-row {
     display: grid;
     grid-template-columns:
-      minmax(0, 390fr) minmax(0, 155fr) minmax(8rem, 194fr) minmax(6rem, 158fr) 44px;
+      minmax(0, 300fr) minmax(8rem, 230fr) minmax(6rem, 150fr) minmax(5rem, 110fr)
+      minmax(6rem, 168fr) 44px;
     column-gap: 1rem;
   }
 
@@ -218,10 +252,22 @@ body {
     align-items: center;
   }
 
-  /* Rows are top-aligned: the Name cell is three lines (name, payment method, expiry)
-     and the other four are one, so centring would float them against its middle. */
+  /* Rows are top-aligned: the first cell is up to three lines (the method, the
+     cardholder, the date added) and the other four are one, so centring would float
+     them against its middle. */
   .bill-row {
     align-items: start;
+  }
+
+  /* Undo the mobile placement — every cell flows into its own track here, including the
+     kebab, which is the sixth. Without this reset they would all pile into column one. */
+  .bill-row > *,
+  .bill-row > *:last-child {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: auto;
+    align-self: auto;
+    margin-block: 0;
   }
 }
 
@@ -233,10 +279,29 @@ body {
   display: none;
 }
 
+/*
+ * Mobile: the cells stack, and the open-invoice action stays at the TOP RIGHT beside the
+ * invoice number rather than sinking to the bottom of the pile. Same treatment as
+ * `.bill-row` — see the note there.
+ */
 .inv-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.375rem;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 0.375rem 1rem;
+}
+
+.inv-row > * {
+  grid-column: 1;
+}
+
+.inv-row > *:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  /* Cancels the button's 6px touch-target padding in the LAYOUT only, so row one is as
+     tall as its text rather than as tall as the button — see the note on `.subs-row`. */
+  margin-block: -0.375rem;
 }
 
 @media (min-width: 64rem) {
@@ -248,6 +313,16 @@ body {
       minmax(7rem, 130fr) minmax(6rem, 110fr) minmax(8rem, 160fr) 44px;
     column-gap: 1rem;
     align-items: center;
+  }
+
+  /* Undo the mobile placement — every cell flows into its own track here. */
+  .inv-row > *,
+  .inv-row > *:last-child {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: auto;
+    align-self: auto;
+    margin-block: 0;
   }
 }
 

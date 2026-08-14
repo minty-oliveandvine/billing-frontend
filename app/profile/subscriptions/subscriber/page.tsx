@@ -9,9 +9,9 @@ import { PortalShell } from "@/components/profile/PortalShell";
 /**
  * /profile/subscriptions/subscriber?entity=<id> — "Change subscriber" on the row menu.
  *
- * The entity rides in the query string rather than the path, matching
- * `/profile/billing/account`. `useSearchParams` opts a route out of static prerendering
- * unless it sits behind a Suspense boundary, hence the split.
+ * The entity rides in the query string rather than the path, as `/profile/invoices?entity=`
+ * does. `useSearchParams` opts a route out of static prerendering unless it sits behind a
+ * Suspense boundary, hence the split.
  */
 function ChangeSubscriberView() {
   const entityId = useSearchParams().get("entity") ?? undefined;

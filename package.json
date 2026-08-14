@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.8.1",
+    "@stripe/stripe-js": "^9.13.0",
     "@vercel/analytics": "^2.0.1",
     "material-symbols": "^0.45.2",
     "next": "16.1.6",

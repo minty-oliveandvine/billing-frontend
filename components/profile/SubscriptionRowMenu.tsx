@@ -7,21 +7,23 @@ import { buildEnterUrl, type PortalEntity } from "@/lib/payerPortal";
 /**
  * The per-row kebab.
  *
- * Two of the items in the design move an established financial relationship and have no
- * write route, no preview and no audit entry today. Neither is dropped: leaving them out
- * would quietly redesign the menu, and the gap is known rather than forgotten.
+ * "Change billing account" USED TO BE HERE, greyed out with a reason attached, on the
+ * argument that a known gap beats a quietly redesigned menu. It is gone now, because the
+ * gap was never real: there is ONE billing account per payer — one Stripe customer, one
+ * anchor, one dunning clock, one invoice with a line per company — so there is no second
+ * account to move an entity to. The item promised a feature the model has no room for.
+ * What DOES vary is which saved payment method that one account charges, and the Billing
+ * tab is where that is chosen.
  *
- * They differ in how far they get. "Change subscriber" opens a real, READ-ONLY screen —
- * it can already answer "who could take this over?" from the entity's admins, and leaves
- * its own buttons disabled. "Change billing account" has nothing to show at all (there is
- * one account per payer, so the list would be one row) and stays a greyed menu item with
- * a reason attached.
+ * "Change subscriber" stays, and is the genuine gap: handing an entity to a different
+ * payer is a real operation with no write route, no proration preview and no audit entry
+ * today. Its screen opens and is READ-ONLY — it can already answer "who could take this
+ * over?" from the entity's admins — so it is worth more than a greyed row.
  *
- * The two that do work leave for Minty. That is not a shortcut — subscribing and
- * cancelling run a proration preview and a confirmation the customer has to read, and
- * both are gated server-side by `@require_subscription_payer`. Re-implementing that flow
- * here would put a second, differently-worded route to the same charge in front of the
- * same person.
+ * The two that act leave for Minty. That is not a shortcut — subscribing and cancelling
+ * run a proration preview and a confirmation the customer has to read, and both are gated
+ * server-side by `@require_subscription_payer`. Re-implementing that flow here would put a
+ * second, differently-worded route to the same charge in front of the same person.
  */
 
 type MenuItem = {
@@ -34,7 +36,10 @@ type MenuItem = {
 
 export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
   const [open, setOpen] = useState(false);
+  /** Opens upward when the row is near the bottom of the window — see `toggle`. */
+  const [dropUp, setDropUp] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +59,22 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
     };
   }, [open]);
 
+  /**
+   * Decide the direction BEFORE opening, from the room actually left below the button.
+   *
+   * Six items is a tall menu, and the last row of the table is where it is most often
+   * opened from. Dropping down from there ran it past the end of the card and cut off
+   * "Cancel subscription" — the item somebody scrolls to that row to find.
+   */
+  const MENU_HEIGHT = 290;
+  const toggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropUp(window.innerHeight - rect.bottom < MENU_HEIGHT);
+    }
+    setOpen((v) => !v);
+  };
+
   const subscriptionUrl = buildEnterUrl(entity.entity_id, entity.settings_path);
   // Nothing live to end. Offering Cancel against an entity whose modules have all
   // lapsed sends the user to a page with no Cancel button on it.
@@ -64,16 +85,17 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
   const items: MenuItem[] = [
     { label: "View subscription", href: subscriptionUrl },
     {
+      // The Billing tab, NOT a per-entity billing page — there isn't one to go to. A
+      // payer has ONE billing account (one Stripe customer, one anchor, one dunning
+      // clock) and every company they pay for is a line on its invoice, so the account
+      // this entity bills to is simply the account. No entity id on the link, because
+      // narrowing that screen to one company would be narrowing it to all of them.
       label: "View billing account",
-      href: `/profile/billing/account?entity=${encodeURIComponent(entity.entity_id)}`,
+      href: "/profile/billing",
     },
     {
       label: "View invoices",
       href: `/profile/invoices?entity=${encodeURIComponent(entity.entity_id)}`,
-    },
-    {
-      label: "Change billing account",
-      unavailable: "Moving an entity to another billing account isn't supported yet.",
     },
     {
       // Opens, but cannot act. The screen is read-only — it lists the admins the bill
@@ -96,7 +118,8 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
     <div className="relative flex justify-center" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        ref={buttonRef}
+        onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Actions for ${entity.entity_name}`}
@@ -110,7 +133,9 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-9 z-30 w-60 overflow-hidden rounded-xl border border-[#E6EBED] bg-white py-1.5 shadow-[0_8px_24px_rgba(15,23,41,0.12)]"
+          className={`absolute right-0 z-30 w-60 overflow-hidden rounded-xl border border-[#E6EBED] bg-white py-1.5 shadow-[0_8px_24px_rgba(15,23,41,0.12)] ${
+            dropUp ? "bottom-9" : "top-9"
+          }`}
         >
           {items.map((item) =>
             item.href ? (

@@ -123,75 +123,6 @@ export type SubscriberOptions = {
   candidates: SubscriberCandidate[];
 };
 
-// --- Billing ----------------------------------------------------------------
-
-/**
- * ONE account, several entities — the shape of the Billing tab, and not a simplification.
- * Minty holds a single `user_stripe_customer` per payer: one currency, one anchor, one
- * dunning clock, one card on one Stripe customer. The renewal issues a single invoice per
- * payer with a line per entity, and `issue_invoice` charges the CUSTOMER — so there is
- * exactly one card in play however many companies are on the bill.
- */
-export type BillingStatus = "active" | "past_due" | "trial" | "none";
-
-export type BillingCard = {
-  /** "card", or a wallet type such as "link". */
-  type: string;
-  brand: string | null;
-  last4: string | null;
-  /** Stripe's `billing_details.name` — often not the payer, so never assumed to be. */
-  cardholder: string | null;
-  /** Pre-formatted MM/YY, null for a wallet that exposes no card. */
-  expiry: string | null;
-  /** The complete string to print — "Visa •••• 4242", or "Link". */
-  label: string;
-};
-
-export type BillingEntity = {
-  entity_id: string;
-  entity_name: string;
-  country: string | null;
-  country_code: string | null;
-  /** Plan display name — "Super Minty" / "Petty Cash" / "Payment Request", or null. */
-  plan: string | null;
-  plan_code: string | null;
-  status: BillingStatus;
-  status_label: string;
-  settings_path: string;
-};
-
-export type PayerBilling = {
-  account: {
-    has_account: boolean;
-    name: string;
-    email: string;
-    currency: string | null;
-    anchor: string | null;
-    next_billing: string | null;
-    next_billing_iso: string | null;
-    card: BillingCard | null;
-    status: BillingStatus;
-    status_label: string;
-  };
-  entities: BillingEntity[];
-  total: number;
-};
-
-/**
- * Dropdown contents for the billing-account form, from Minty's registries.
- *
- * Fetched rather than typed into the client: `country_info` and `currency_info` hold the
- * full ISO lists narrowed by `is_active` to what this deployment operates in, and
- * `billing_plan` is the price catalog. A hardcoded list would drift from all three, and
- * would offer a country or a plan that cannot actually be billed.
- */
-export type BillingFormOptions = {
-  countries: { code: string; name: string }[];
-  currencies: { code: string; name: string }[];
-  plans: { code: string; name: string; currency: string }[];
-  statuses: { value: BillingStatus; label: string }[];
-};
-
 export class PortalError extends Error {
   constructor(
     public status: number,
@@ -340,19 +271,6 @@ export async function fetchSubscriberOptions(
   return data;
 }
 
-/** The signed-in user's billing account, and what each entity puts on it. */
-export async function fetchPayerBilling(signal?: AbortSignal): Promise<PayerBilling> {
-  const data = await portalGet<PayerBilling>(
-    "/api/me/billing",
-    new URLSearchParams(),
-    signal,
-  );
-  if (!data?.account || !Array.isArray(data.entities)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
-  }
-  return data;
-}
-
 /**
  * Invite someone into an entity as an ADMIN. Resolves to the server's confirmation.
  *
@@ -411,18 +329,104 @@ export async function inviteAdminToEntity(
   return body.message ?? "Invitation sent.";
 }
 
+// --- Saved payment methods --------------------------------------------------
+
 /**
- * Opens Stripe's payment-method form and returns the URL to send the browser to.
+ * One method saved against the payer's Stripe customer.
  *
- * The card is captured by STRIPE, never by this app — no PAN or CVC passes through here,
- * which is what keeps the application out of PCI scope. `next` is a path on this origin
- * to return to once the card is saved.
+ * THE DEFAULT IS THE ONLY ONE WITH BILLING MEANING. Renewals and dunning charge
+ * `invoice_settings.default_payment_method` and nothing else, so the rest of the shelf is
+ * there for the payer to prepare a switch — add next year's card before this year's
+ * expires — not for anything to choose between at charge time. Promoting one therefore
+ * changes what charges EVERY company on the account, because there is one account.
  *
- * A 409 means the account has no Stripe customer yet: the portal cannot create one, so
- * the first card has to come through an entity's subscribe flow. Callers should say that
- * rather than showing a bare failure.
+ * `card` fields are null for a wallet (Stripe Link exposes no card object); `label` is
+ * always safe to print.
  */
-export async function startPaymentMethodUpdate(next: string): Promise<string> {
+export type SavedPaymentMethod = {
+  id: string;
+  /** "card", or a wallet type such as "link". */
+  type: string;
+  brand: string | null;
+  /** "Visa" / "Mastercard" / "Link" — already title-cased. */
+  brand_label: string;
+  last4: string | null;
+  /** The one-line description — "Visa •••• 4242". */
+  label: string;
+  /** Stripe's `billing_details.name`. Often not the payer, so never assumed to be. */
+  cardholder: string | null;
+  email: string | null;
+  address: {
+    line1: string | null;
+    line2: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    country: string | null;
+  };
+  exp_month: number | null;
+  exp_year: number | null;
+  /** Pre-formatted MM/YY, null for a wallet. */
+  expiry: string | null;
+  /** Stripe's own classification: "credit" / "debit" / "prepaid". Not a guess from brand. */
+  funding: string | null;
+  /** `card.wallet.type` — "apple_pay", "google_pay", "link"… null for a typed-in card. */
+  wallet: string | null;
+  /** The same, spelled the way it is written: "Apple Pay". */
+  wallet_label: string | null;
+  /**
+   * Where the card was ISSUED (2-letter), falling back to the billing address country
+   * for a wallet that has no card behind it.
+   *
+   * Not the address the payer typed, and it will disagree with it — a US-issued card
+   * billed to Manila is ordinary, and Stripe's 4242 test card is always US. The issuer is
+   * what drives cross-border fees and declines, and the billing address is already in the
+   * Edit dialog.
+   */
+  country: string | null;
+  /** Resolved against Minty's country registry; falls back to the code. */
+  country_name: string | null;
+  is_default: boolean;
+  /** The expiry month has passed. A card is good through the LAST day of that month. */
+  expired: boolean;
+  /** Expires within two months — while a replacement can still be saved in time. */
+  expires_soon: boolean;
+  added: string | null;
+  added_iso: string | null;
+};
+
+export type PayerPaymentMethods = {
+  /**
+   * False means no Stripe customer at all, which is not an empty wallet: an account whose
+   * trials never captured a card has never opened one. "Add payment method" is the only
+   * thing to show there.
+   */
+  has_account: boolean;
+  default_id: string | null;
+  methods: SavedPaymentMethod[];
+  total: number;
+};
+
+export type SetupIntentHandle = {
+  /** Authorises the browser to confirm THIS intent and nothing else. */
+  client_secret: string;
+  publishable_key: string;
+  setup_intent: string;
+};
+
+/**
+ * POST to a payer-portal endpoint with the token handling, and give back the payload.
+ *
+ * The mutating half of `portalGet`, and it exists for the same reason: the billing JWT
+ * lives 30 minutes inside a cookie that lives 8 hours, so a tab left open holds a token
+ * Minty will reject. Refresh up front, and retry once behind a refresh.
+ *
+ * A refusal from these endpoints is WRITTEN FOR THE CUSTOMER — "make another one the
+ * default first", "that expiry date has already passed" — so its message passes through
+ * untouched rather than being flattened into a generic failure. The `^[a-z_]+$` test is
+ * what tells a sentence from a machine code like `unauthorized`.
+ */
+async function portalPost<T>(path: string, body: unknown): Promise<T> {
   const auth = getAuth();
   if (!auth?.token) throw new PortalError(401, MESSAGES[401]);
 
@@ -431,7 +435,7 @@ export async function startPaymentMethodUpdate(next: string): Promise<string> {
     token = getAuth()?.token ?? token;
   }
 
-  const url = `${mintyOrigin()}/api/me/billing/payment-method`;
+  const url = `${mintyOrigin()}${path}`;
   const send = (bearer: string) =>
     fetch(url, {
       method: "POST",
@@ -439,7 +443,7 @@ export async function startPaymentMethodUpdate(next: string): Promise<string> {
         Authorization: `Bearer ${bearer}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ next }),
+      body: JSON.stringify(body ?? {}),
     });
 
   let res: Response;
@@ -454,19 +458,117 @@ export async function startPaymentMethodUpdate(next: string): Promise<string> {
     if (fresh) res = await send(fresh);
   }
 
-  const body = (await res.json().catch(() => null)) as
-    | { url?: string; error?: string }
+  const payload = (await res.json().catch(() => null)) as
+    | (T & { error?: string })
     | null;
 
-  if (!res.ok || !body?.url) {
+  if (!res.ok) {
     throw new PortalError(
       res.status,
-      body?.error && !/^[a-z_]+$/.test(body.error)
-        ? body.error
-        : MESSAGES[res.status] ?? "Could not open the payment form. Let's try again?",
+      payload?.error && !/^[a-z_]+$/.test(payload.error)
+        ? payload.error
+        : MESSAGES[res.status] ?? "Something got stuck on my end! Let's try again?",
     );
   }
-  return body.url;
+  return payload as T;
+}
+
+/** Every payment method saved on the signed-in payer's account, default first. */
+export async function fetchPaymentMethods(
+  signal?: AbortSignal,
+): Promise<PayerPaymentMethods> {
+  const data = await portalGet<PayerPaymentMethods>(
+    "/api/me/billing/payment-methods",
+    new URLSearchParams(),
+    signal,
+  );
+  if (!data || !Array.isArray(data.methods)) {
+    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+  }
+  return data;
+}
+
+/**
+ * Open a SetupIntent for the in-app card form.
+ *
+ * The card is typed into Stripe Elements and confirmed straight against Stripe — it never
+ * reaches Minty, which is what keeps the app out of PCI scope even though the UI is ours.
+ * No customer is created here: a form that gets abandoned must leave nothing behind.
+ */
+export async function startCardSetup(): Promise<SetupIntentHandle> {
+  const data = await portalPost<SetupIntentHandle>(
+    "/api/me/billing/payment-methods/setup-intent",
+    {},
+  );
+  if (!data?.client_secret || !data?.publishable_key) {
+    throw new PortalError(502, "The card form didn't open. Let's try again?");
+  }
+  return data;
+}
+
+/**
+ * Tell Minty about the card Stripe just confirmed, and get the refreshed list back.
+ *
+ * MUST be awaited before the list is re-read. Until this resolves the method may not be
+ * attached to any customer at all — for a payer's first card there is no customer yet
+ * either, and this is what creates it.
+ */
+export async function confirmCardSetup(
+  setupIntent: string,
+  makeDefault = false,
+): Promise<PayerPaymentMethods> {
+  return portalPost<PayerPaymentMethods>(
+    "/api/me/billing/payment-methods/confirm",
+    { setup_intent: setupIntent, make_default: makeDefault },
+  );
+}
+
+/** Nominate the method every future invoice is charged to — account-wide. */
+export async function setDefaultPaymentMethod(
+  paymentMethod: string,
+): Promise<PayerPaymentMethods> {
+  return portalPost<PayerPaymentMethods>(
+    "/api/me/billing/payment-methods/default",
+    { payment_method: paymentMethod },
+  );
+}
+
+/**
+ * Correct a saved method's expiry or billing details.
+ *
+ * Deliberately not a way to change the card: Stripe does not allow a number, brand or CVC
+ * to be edited, because a different card is a different PaymentMethod. Replacing one is
+ * "Add payment method" followed by removing the old.
+ */
+export async function updatePaymentMethod(
+  paymentMethod: string,
+  changes: {
+    exp_month?: number;
+    exp_year?: number;
+    name?: string;
+    address?: Partial<SavedPaymentMethod["address"]>;
+  },
+): Promise<PayerPaymentMethods> {
+  return portalPost<PayerPaymentMethods>(
+    "/api/me/billing/payment-methods/update",
+    { payment_method: paymentMethod, ...changes },
+  );
+}
+
+/**
+ * Detach a saved method.
+ *
+ * Two 409s carry a stated reason and are shown as written: the default cannot go while
+ * another method could take its place, and the last method cannot go at all while
+ * something is still billing to it.
+ */
+export async function removePaymentMethod(
+  paymentMethod: string,
+): Promise<PayerPaymentMethods> {
+  return portalPost<PayerPaymentMethods>(
+    "/api/me/billing/payment-methods/remove",
+    { payment_method: paymentMethod },
+  );
 }
 
 // --- Invoices ---------------------------------------------------------------
@@ -558,21 +660,6 @@ export async function fetchPayerInvoices(
     params.signal,
   );
   if (!data || !Array.isArray(data.invoices)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
-  }
-  return data;
-}
-
-/** Countries, currencies, plans and statuses for the billing-account form. */
-export async function fetchBillingFormOptions(
-  signal?: AbortSignal,
-): Promise<BillingFormOptions> {
-  const data = await portalGet<BillingFormOptions>(
-    "/api/me/billing/options",
-    new URLSearchParams(),
-    signal,
-  );
-  if (!data || !Array.isArray(data.countries)) {
     throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
   }
   return data;

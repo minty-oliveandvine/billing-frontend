@@ -6,6 +6,7 @@ import {
   ALL_ENTITIES,
   EntityFilterCombobox,
 } from "@/components/profile/EntityFilterCombobox";
+import { Pagination } from "@/components/profile/Pagination";
 import {
   fetchPayerInvoices,
   PortalError,
@@ -299,64 +300,5 @@ export function InvoicesContent({ initialEntityId }: { initialEntityId?: string 
         ) : null}
       </div>
     </div>
-  );
-}
-
-/** Windowed to five, for the same reason as the subscriptions table's. */
-function Pagination({
-  page,
-  pages,
-  onChange,
-}: {
-  page: number;
-  pages: number;
-  onChange: (page: number) => void;
-}) {
-  const size = 5;
-  const start = Math.max(1, Math.min(page - Math.floor(size / 2), pages - size + 1));
-  const numbers = Array.from({ length: Math.min(size, pages) }, (_, i) => start + i);
-  const boxClass =
-    "inline-flex h-[34px] min-w-[34px] cursor-pointer items-center justify-center rounded-lg px-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary";
-
-  return (
-    <nav className="flex items-center gap-1.5" aria-label="Pagination">
-      <button
-        type="button"
-        onClick={() => onChange(page - 1)}
-        disabled={page <= 1}
-        aria-label="Previous page"
-        className={`${boxClass} border border-[#E6EBED] bg-white font-semibold text-[#737A87] hover:bg-[#F5F7FA] disabled:cursor-not-allowed disabled:opacity-40`}
-      >
-        <span className="material-symbols-outlined text-[18px] leading-none" aria-hidden>
-          chevron_left
-        </span>
-      </button>
-      {numbers.map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          aria-current={n === page ? "page" : undefined}
-          className={`${boxClass} ${
-            n === page
-              ? "bg-[#4FC7C7] font-semibold text-white"
-              : "border border-[#E6EBED] bg-white font-medium text-[#292E38] hover:bg-[#F5F7FA]"
-          }`}
-        >
-          {n}
-        </button>
-      ))}
-      <button
-        type="button"
-        onClick={() => onChange(page + 1)}
-        disabled={page >= pages}
-        aria-label="Next page"
-        className={`${boxClass} border border-[#E6EBED] bg-white font-semibold text-[#737A87] hover:bg-[#F5F7FA] disabled:cursor-not-allowed disabled:opacity-40`}
-      >
-        <span className="material-symbols-outlined text-[18px] leading-none" aria-hidden>
-          chevron_right
-        </span>
-      </button>
-    </nav>
   );
 }

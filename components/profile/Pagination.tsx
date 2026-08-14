@@ -31,8 +31,15 @@ export function Pagination({
   const boxClass =
     "inline-flex h-[34px] min-w-[34px] cursor-pointer items-center justify-center rounded-lg px-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary";
 
+  // Centred once it wraps. Every footer that renders this is `justify-between`, which
+  // separates children only WITHIN a line — so on a phone, where the count takes the
+  // first row and the pager gets its own, there is nothing left to push against and it
+  // lands hard left under the text. `mx-auto` absorbs the free space on both sides
+  // instead; from `sm` up it goes back to sitting at the end of the shared row. Living
+  // here rather than in each footer, it applies to Manage Subscriptions, Billing and
+  // Invoices alike.
   return (
-    <nav className="flex items-center gap-1.5" aria-label="Pagination">
+    <nav className="mx-auto flex items-center gap-1.5 sm:mx-0" aria-label="Pagination">
       <button
         type="button"
         onClick={() => onChange(page - 1)}

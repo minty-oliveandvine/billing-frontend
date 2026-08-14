@@ -58,6 +58,15 @@ const focusRing =
 
 const primaryClass = `inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
 
+/**
+ * The card's own header action, matching Export CSV on the Invoices tab.
+ *
+ * Same geometry as that button — `px-4 py-2.5`, no fixed height, no shadow — rather than
+ * the `h-11` form button used inside the dialogs. The two sit in the same position on
+ * adjacent tabs, so a difference in height or shadow reads as one of them being wrong.
+ */
+const headerActionClass = `inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
+
 const ghostClass = `inline-flex h-11 cursor-pointer items-center justify-center rounded-lg border border-[#D8DEE4] bg-white px-4 text-sm font-semibold text-[#4B5563] transition-colors hover:bg-[#F5F7FA] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
 
 const dangerClass = `inline-flex h-11 cursor-pointer items-center justify-center rounded-lg bg-[#B42318] px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
@@ -707,7 +716,12 @@ export function PaymentMethodsPanel() {
           card's edge and lost "Remove". Nothing inside paints into the corners (the cells
           have no background of their own), so the radius survives without it. */}
       <div className="flex min-h-[34rem] flex-col rounded-2xl border border-[#E6EBED] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-        <div className="flex items-start justify-between gap-3 px-4 py-4 sm:px-6">
+        {/* WRAPS, like the Invoices filter row above its own Export CSV button. Held on
+            one line, the description squeezed the actions into a two-line button beside a
+            three-line paragraph on any phone; wrapping drops them onto their own row
+            instead. `items-center` rather than `items-start` so they sit level once they
+            share a line on wider screens. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-[#21262E]">Billing accounts</h2>
             {/* The one thing this screen has to say out loud, because a list of cards
@@ -720,8 +734,21 @@ export function PaymentMethodsPanel() {
           {/* The action lives up here so the footer is free for the count and the pager,
               which is where the other two tabs put theirs. Refresh stays the rightmost
               control on all three, so it is in the same corner whichever tab you are on. */}
-          <div className="flex shrink-0 items-center gap-2">
-            <button type="button" className={primaryClass} onClick={() => setAdding(true)}>
+          {/* Mobile: this group takes the whole wrapped row and splits it — Add on the
+              left, refresh on the right, so the icon keeps the right-hand position it
+              holds on every other tab instead of trailing the button into the middle.
+              `w-full` is what makes that possible: the parent's `justify-between` only
+              separates children WITHIN a line, and once the actions wrap to a line of
+              their own there is nothing left to push against.
+
+              From `sm` up it shrinks back to its content and `ml-auto` pushes the pair
+              right as a unit, beside the title rather than under it. */}
+          <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+            <button
+              type="button"
+              className={headerActionClass}
+              onClick={() => setAdding(true)}
+            >
               <span className="material-symbols-outlined text-[18px] leading-none" aria-hidden>
                 add
               </span>

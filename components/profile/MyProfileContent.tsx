@@ -191,14 +191,20 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
         <h1 className="mt-5 text-xl font-bold text-black sm:text-2xl">{loading ? "…" : displayName(profile)}</h1>
       </div>
 
-      <ProfilePortalLinks />
-
+      {/* Above the portal cards, not below them. This is the "your profile didn't load"
+          failure, and everything under it — Manage subscriptions, Billing, Invoices — is
+          what the reader is about to click. Printed after that stack it was off the
+          bottom of the screen on a phone, so the first sign of trouble was a card that
+          did not work. */}
       {error ? (
         <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
           {error}
         </div>
       ) : null}
 
+      <ProfilePortalLinks />
+
+      {/* Stays here: this one belongs to the fields below, not to the cards above. */}
       {saveError ? (
         <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
           {saveError}

@@ -6,6 +6,22 @@ const TOKEN_KEY = "billing_token";
 const ENTITY_ID_KEY = "billing_entity_id";
 const ENTITY_NAME_KEY = "billing_entity_name";
 
+/**
+ * Which module the user left to get here — "bills" or "pettycash".
+ *
+ * Written once by `/landing` from the `from` parameter Minty stamps on the handoff, and
+ * read by any screen that has to send them BACK. A cookie rather than a query string
+ * because the answer has to survive navigation inside this app: open the profile, step
+ * into Billing, come back, and a `?from=` is long gone while the question — where did this
+ * person come from — has not changed.
+ *
+ * PROVENANCE ONLY. It says where they came from; it never decides what they may reach.
+ * That is entitlements, and ultimately the backend.
+ */
+const HANDOFF_FROM_KEY = "billing_from";
+
+export type HandoffOrigin = "bills" | "pettycash";
+
 const BILLING_TOKEN_MAX_AGE = 60 * 60 * 8; // 8 hours — matches JWT lifetime
 
 export type AuthInfo = {
@@ -42,11 +58,32 @@ export function getAuth(): AuthInfo | null {
   };
 }
 
+/**
+ * Record which module handed the user over. Anything unrecognised is treated as Petty
+ * Cash — that is where the great majority of profile links come from, and it is the safe
+ * guess: it returns the user to Minty, which can always work out where they belong,
+ * rather than into a Payment Request module their company may not have bought.
+ */
+export function setHandoffOrigin(from: string | null | undefined) {
+  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
+  const opts = `path=/;max-age=${BILLING_TOKEN_MAX_AGE};SameSite=Lax${isSecure ? ";Secure" : ""}`;
+  const value: HandoffOrigin = from === "bills" ? "bills" : "pettycash";
+  document.cookie = `${HANDOFF_FROM_KEY}=${value};${opts}`;
+}
+
+export function getHandoffOrigin(): HandoffOrigin {
+  if (typeof document === "undefined") return "pettycash";
+  const jar = document.cookie.split("; ").filter(Boolean);
+  const hit = jar.find((c) => c.startsWith(`${HANDOFF_FROM_KEY}=`));
+  return hit?.slice(HANDOFF_FROM_KEY.length + 1) === "bills" ? "bills" : "pettycash";
+}
+
 export function clearAuth() {
   const expire = "path=/;max-age=0";
   document.cookie = `${TOKEN_KEY}=;${expire}`;
   document.cookie = `${ENTITY_ID_KEY}=;${expire}`;
   document.cookie = `${ENTITY_NAME_KEY}=;${expire}`;
+  document.cookie = `${HANDOFF_FROM_KEY}=;${expire}`;
 }
 
 /** Cookie name checked by Next.js middleware for auth gating. */

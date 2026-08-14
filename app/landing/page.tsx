@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
-import { setAuth } from "@/lib/auth";
+import { setAuth, setHandoffOrigin } from "@/lib/auth";
 
 function LandingContent() {
   const router = useRouter();
@@ -24,6 +24,10 @@ function LandingContent() {
     }
 
     setAuth(token, entityId, entityName);
+    // Minty stamps `from=bills` when the link came from a Payment Request screen, and
+    // leaves it off for Petty Cash. Recorded here — this is the only moment it is
+    // knowable, since `router.replace` drops the query on the way to `next`.
+    setHandoffOrigin(searchParams.get("from"));
     router.replace(next);
   }, [router, searchParams]);
 

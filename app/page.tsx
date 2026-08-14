@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EasyViewToggle, Header } from "@/components/layout";
 import { PaymentRequestView } from "@/components/payment-request";
+import { ModuleGate } from "@/components/ModuleGate";
 import { SubscriptionNoticeModal } from "@/components/SubscriptionNoticeModal";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
 import { fetchXeroStatus, fetchMe } from "@/lib/api";
@@ -112,6 +113,7 @@ export default function Home() {
     : "---";
 
   return (
+    <ModuleGate>
     <div className="flex min-h-dvh min-h-screen min-w-0 max-w-full flex-col overflow-x-clip bg-white pb-[env(safe-area-inset-bottom,0px)]">
       <Header
         title="Payment Request"
@@ -129,5 +131,6 @@ export default function Home() {
       <PaymentRequestView easyView={easyView} />
       <SubscriptionNoticeModal notice={notice} onClose={() => setNotice(null)} />
     </div>
+  </ModuleGate>
   );
 }

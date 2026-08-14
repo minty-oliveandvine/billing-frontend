@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { Header } from "@/components/layout";
+import { ModuleGate } from "@/components/ModuleGate";
 import { SettingsContent } from "@/components/settings/SettingsContent";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
 import { fetchXeroStatus } from "@/lib/api";
@@ -34,6 +35,7 @@ export default function SettingsPage() {
     : "---";
 
   return (
+    <ModuleGate>
     <div className="flex h-dvh h-screen min-w-0 max-w-full flex-col overflow-hidden bg-white">
       <Header
         title="Settings"
@@ -63,5 +65,6 @@ export default function SettingsPage() {
         </Suspense>
       </main>
     </div>
+    </ModuleGate>
   );
 }

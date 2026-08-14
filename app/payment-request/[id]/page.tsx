@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ModuleGate } from "@/components/ModuleGate";
 import { PaymentRequestDetailPageClient } from "./PaymentRequestDetailPageClient";
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function PaymentRequestDetailPage() {
-  return <PaymentRequestDetailPageClient />;
+  return (
+    <ModuleGate>
+      <PaymentRequestDetailPageClient />
+    </ModuleGate>
+  );
 }

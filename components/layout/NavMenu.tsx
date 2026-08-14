@@ -28,7 +28,10 @@ function buildModule1EntryUrl(path?: string): string {
   return `${MODULE1_URL}/entity`;
 }
 
-function buildMenuSections(pettyCashEnabled: boolean): NavMenuSection[] {
+function buildMenuSections(
+  pettyCashEnabled: boolean,
+  billingEnabled: boolean,
+): NavMenuSection[] {
   const auth = getAuth();
   const dashboardHref = buildModule1EntryUrl();
   const reportsPath = auth?.entityId ? `/entity/${auth.entityId}/reports` : undefined;
@@ -46,10 +49,16 @@ function buildMenuSections(pettyCashEnabled: boolean): NavMenuSection[] {
       ],
     });
   }
-  sections.push({
-    title: "Payment Request",
-    items: [{ href: "/", label: "Payments", icon: "local_atm" }],
-  });
+  // Gated for exactly the same reason, which it was not before: this section was pushed
+  // unconditionally, so a Petty-Cash-only company was offered "Payments" in its own nav
+  // and the link led to a module it had never bought. Being the app you happen to be
+  // standing in is not an entitlement.
+  if (billingEnabled) {
+    sections.push({
+      title: "Payment Request",
+      items: [{ href: "/", label: "Payments", icon: "local_atm" }],
+    });
+  }
   return sections;
 }
 
@@ -110,10 +119,10 @@ export function NavMenu({ items, menuSections, companyAbbreviation = "---", onLo
   // Subscribe to DB-fresh entitlements so a CLI/admin toggle of PETTY_CASH
   // takes effect on the next page load without needing a re-handoff through
   // Module 1 (the cookie JWT claim can be hours stale).
-  const { pettyCashEnabled } = useEntitlements();
+  const { pettyCashEnabled, billingEnabled } = useEntitlements();
   const resolvedSections = useMemo(
-    () => menuSections ?? buildMenuSections(pettyCashEnabled),
-    [menuSections, pettyCashEnabled],
+    () => menuSections ?? buildMenuSections(pettyCashEnabled, billingEnabled),
+    [menuSections, pettyCashEnabled, billingEnabled],
   );
   const resolvedItems = useMemo(() => items ?? buildDefaultItems(resolvedSections), [items, resolvedSections]);
 

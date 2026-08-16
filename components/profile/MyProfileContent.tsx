@@ -5,11 +5,28 @@ import {
   paymentRequestDetailCancelButtonClass,
   paymentRequestDetailSaveButtonClass,
 } from "@/components/payment-request/PaymentRequestDetailedInfo";
+import { ConfirmDialog } from "@/components/payment-request/ConfirmDialog";
 import { ProfilePortalLinks } from "@/components/profile/ProfilePortalLinks";
-import { ApiError, fetchAuthMe, updateProfile, type AuthMeUser } from "@/lib/api";
+import {
+  ApiError,
+  deactivateAccount,
+  fetchAuthMe,
+  updateProfile,
+  type AuthMeUser,
+} from "@/lib/api";
 
 export type MyProfileContentProps = {
   onLogOut: () => void;
+  /**
+   * Whether to offer Sign out — closing the ACCOUNT, not leaving a company.
+   *
+   * True only on the profile reached from the entity list, where no company is in
+   * scope. Inside a company the same button would read as "leave this one", which is
+   * not what it does.
+   */
+  showAccountSignOut?: boolean;
+  /** Called once the account is switched off, to take the user out of the app. */
+  onAccountDeactivated?: () => void;
 };
 
 /**
@@ -53,7 +70,11 @@ function displayName(me: AuthMeUser | null): string {
   return parts.length ? parts.join(" ") : "—";
 }
 
-export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
+export function MyProfileContent({
+  onLogOut,
+  showAccountSignOut = false,
+  onAccountDeactivated,
+}: MyProfileContentProps) {
   const [profile, setProfile] = useState<AuthMeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +88,10 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
   const [editEmail, setEditEmail] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Closing the account — its own state, so a refusal never clears a name/email edit. */
+  const [confirmSignOutOpen, setConfirmSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -174,6 +199,30 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
   const handleSaveEmail = async () => {
     const saved = await persistProfile({ email: editEmail });
     if (saved) setIsEditingEmail(false);
+  };
+
+  /**
+   * The refusal is the server's call, not the client's. Whether this person's card
+   * pays for any of their companies is a question about every company they belong
+   * to, and the browser can see none of them — guessing would either hide the
+   * button from people allowed to use it or promise an action that fails. So the
+   * button is always live and the 422, which NAMES the companies still on their
+   * card, does the explaining inside the dialog where they are still looking.
+   */
+  const handleConfirmSignOut = async () => {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await deactivateAccount();
+      setConfirmSignOutOpen(false);
+      onAccountDeactivated?.();
+    } catch (e) {
+      setSignOutError(
+        e instanceof ApiError ? e.message : "That didn't go through. Let's give it another go?",
+      );
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const abbr = initialsFromNames(profile?.first_name, profile?.last_name);
@@ -315,6 +364,26 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
       ) : null}
 
       <div className="mt-8 flex flex-col gap-3">
+        {/* Sign out closes the ACCOUNT; Log out below ends the SESSION. Two
+            near-synonyms for outcomes that could not differ more, and the labels alone
+            do not distinguish them — the confirm dialog is now the only thing that
+            says which one is permanent, so it has to keep saying it. */}
+        {showAccountSignOut && onAccountDeactivated ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSignOutError(null);
+              setConfirmSignOutOpen(true);
+            }}
+            className="box-border flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-[#FF6B6B] bg-white text-sm font-semibold text-[#FF6B6B] transition-colors hover:bg-[#FF6B6B]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B6B]"
+          >
+            <span className="material-symbols-outlined text-[22px] leading-none" aria-hidden>
+              no_accounts
+            </span>
+            Sign out
+          </button>
+        ) : null}
+
         <button type="button" className="box-border flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-[#FF6B6B] bg-white text-sm font-semibold text-[#FF6B6B] transition-colors hover:bg-[#FF6B6B]/10" onClick={() => onLogOut()}>
           <span className="material-symbols-outlined text-[22px] leading-none" aria-hidden>
             logout
@@ -325,6 +394,28 @@ export function MyProfileContent({ onLogOut }: MyProfileContentProps) {
           Update profile
         </button>
       </div>
+
+      {showAccountSignOut ? (
+        <ConfirmDialog
+          open={confirmSignOutOpen}
+          zIndex={430}
+          pending={signingOut}
+          onClose={() => setConfirmSignOutOpen(false)}
+          onConfirm={handleConfirmSignOut}
+          title="Sign out of Minty for good?"
+          confirmLabel={signingOut ? "Signing out…" : "Sign out"}
+        >
+          This closes your account across every company you belong to — not just this
+          session, and not just one company. You won&apos;t be able to sign in again.
+          Everything you recorded stays where it is, attributed to you, so your companies
+          keep their history.
+          {signOutError ? (
+            <span className="mt-3 block rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {signOutError}
+            </span>
+          ) : null}
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

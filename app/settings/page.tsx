@@ -5,7 +5,7 @@ import { Header } from "@/components/layout";
 import { ModuleGate } from "@/components/ModuleGate";
 import { SettingsContent } from "@/components/settings/SettingsContent";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
-import { fetchXeroStatus } from "@/lib/api";
+import { fetchXeroStatus, logoutSession } from "@/lib/api";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 
 export default function SettingsPage() {
@@ -20,7 +20,10 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const handleLogout = () => {
+  // Server call drops sign-in presence; the Minty session survives so the entity
+  // list is still reachable. See app/profile/page.tsx.
+  const handleLogout = async () => {
+    await logoutSession();
     clearAuth();
     window.location.href = `${MODULE1_URL}/entity`;
   };

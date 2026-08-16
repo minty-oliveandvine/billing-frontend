@@ -10,7 +10,7 @@ import {
   type AuthInfo,
   type HandoffOrigin,
 } from "@/lib/auth";
-import { fetchXeroStatus } from "@/lib/api";
+import { deactivateAccount, fetchXeroStatus, logoutSession } from "@/lib/api";
 import { useEntitlements } from "@/lib/moduleClaims";
 import { buildMintyEnterUrl, MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 
@@ -29,9 +29,30 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const handleLogout = () => {
+  // The server call is what drops the user's sign-in presence — it is why they
+  // leave Minty's Settings > Users list. clearAuth() drops the billing cookies.
+  //
+  // The redirect lands on Minty's entity list, not its /logout: the Minty session
+  // deliberately survives, so the user can pick another company instead of signing
+  // in again. That works because presence tells "signed out" apart from "never
+  // stamped" (see services/user_presence.py in Minty) — landing on an authenticated
+  // Minty page does NOT put them back on the list.
+  const handleLogout = async () => {
+    await logoutSession();
     clearAuth();
     window.location.href = `${MODULE1_URL}/entity`;
+  };
+
+  // Not a logout: the user is still signed in, they just have no membership of this
+  // company any more. Their token was only valid because of that membership, so it
+  // is already dead — clear it and hand them back to the company list to pick
+  // another. Minty's session is left alone, so they stay signed in there.
+  // The account is switched off, so unlike Log out there is nothing to come back to:
+  // the Minty session has to end as well, or they would keep browsing on a session
+  // belonging to an account that can no longer sign in.
+  const handleAccountDeactivated = () => {
+    clearAuth();
+    window.location.href = `${MODULE1_URL}/logout`;
   };
 
   const entityNameTrim = (auth?.entityName ?? "").trim();
@@ -87,7 +108,14 @@ export default function ProfilePage() {
         xeroConnected={xeroConnected}
       />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
-        <MyProfileContent onLogOut={handleLogout} />
+        {/* Sign out shows only on the UNSCOPED profile — the one reached from the
+            entity list. It closes the whole account, not this company, so offering it
+            from inside a company would read as "leave this one". */}
+        <MyProfileContent
+          onLogOut={handleLogout}
+          showAccountSignOut={!hasEntity}
+          onAccountDeactivated={handleAccountDeactivated}
+        />
       </main>
     </div>
   );

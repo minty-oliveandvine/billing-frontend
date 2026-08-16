@@ -736,10 +736,7 @@ export function PaymentRequestEasyView({
                         <div className={easyViewSubmittedTd}>{row.submittedDate}</div>
                         <div className={easyViewAttachmentTd}>
                           <div className="flex w-full min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 sm:gap-2">
-                            {/* Left spacers balance the right-side info icon (and partial icon, when shown) so the slip slot centers in the column. */}
-                            {row.status === "Partially Paid" ? (
-                              <span className="h-[18px] w-[18px] shrink-0" aria-hidden />
-                            ) : null}
+                            {/* Left spacer balances the right-side info icon so the slip slot centers in the column. */}
                             <span className="size-4 shrink-0" aria-hidden />
                             <div className={EASY_VIEW_BANKSLIP_SLOT}>
                               <EasyViewBankSlipControl row={row} onOpen={onOpenBankSlipUpload} />
@@ -753,17 +750,6 @@ export function PaymentRequestEasyView({
                                 <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-950"></div>
                               </div>
                             </div>
-                            {row.status === "Partially Paid" ? (
-                              <Image
-                                src="/partial.png"
-                                alt=""
-                                width={18}
-                                height={18}
-                                className="h-[18px] w-[18px] shrink-0 object-contain"
-                                sizes="18px"
-                                aria-hidden
-                              />
-                            ) : null}
                           </div>
                         </div>
                         <div className={easyViewUnpaidTd}>

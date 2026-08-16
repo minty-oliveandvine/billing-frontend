@@ -6,14 +6,13 @@ import { PaymentRequestView } from "@/components/payment-request";
 import { ModuleGate } from "@/components/ModuleGate";
 import { SubscriptionNoticeModal } from "@/components/SubscriptionNoticeModal";
 import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
-import { fetchXeroStatus, fetchMe } from "@/lib/api";
+import { fetchXeroStatus, fetchMe, logoutSession } from "@/lib/api";
 import {
   claimSubscriptionNotice,
   fetchSubscriptionNotice,
   type SubscriptionNotice,
 } from "@/lib/subscriptionNotice";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
-import { API_BASE } from "@/lib/apiBase";
 
 const EASY_VIEW_STORAGE_KEY = "payment-request-easy-view";
 
@@ -80,27 +79,22 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
-    const currentAuth = getAuth();
-    if (currentAuth?.token) {
-      try {
-        await fetch(`${API_BASE}/api/v1/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${currentAuth.token}`,
-            "X-Entity-Id": currentAuth.entityId,
-          },
-        });
-      } catch {
-        // proceed with local logout even if the server call fails
-      }
-    }
+    // Folded into lib/api's logoutSession(), which every Log out button now shares
+    // — the call drops sign-in presence, so any screen that skipped it would leave
+    // the user listed on Minty's Settings > Users after signing out.
+    await logoutSession();
     clearAuth();
     try {
       localStorage.removeItem(EASY_VIEW_STORAGE_KEY);
     } catch {
       /* private mode / unavailable */
     }
-    window.location.href = `${MODULE1_URL}/`;
+    // The entity list, named explicitly rather than leaning on Minty's `/` to
+    // redirect there. Log out from inside a company means "leave this company", and
+    // every other Log out in this app already says so in the URL; `/` only happened
+    // to land in the same place because the session survives, and would have shown
+    // the login page the day that stopped being true.
+    window.location.href = `${MODULE1_URL}/entity`;
   };
 
   const entityAbbr = auth?.entityName

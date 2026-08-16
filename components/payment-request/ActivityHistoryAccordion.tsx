@@ -21,7 +21,28 @@ type ActivityHistoryAccordionProps = {
   refreshSignal?: number;
 };
 
-const ACTION_MAP: Record<string, { verb: string; subject: (detail: string, ref: string) => string }> = {
+/**
+ * The backend logs first-publish and republish under the same `published_to_xero`
+ * action, and distinguishes them only in the audit detail (see
+ * `xero_publish_service.py`): a first publish writes "Published to Xero…", while
+ * the two republish paths write "Updated Xero invoice…" or "Voided AUTHORISED
+ * invoice and recreated…". Read the detail so the history says which one it was.
+ */
+function publishVerb(detail: string): string {
+  const d = detail.trim();
+  if (/^Updated Xero invoice/i.test(d)) return "republished";
+  if (/^Voided AUTHORISED invoice and recreated/i.test(d)) return "republished";
+  if (/^Update failed/i.test(d) || /^Recreate as DRAFT failed/i.test(d)) {
+    return "failed to republish";
+  }
+  if (/^Publish failed/i.test(d)) return "failed to publish";
+  return "published";
+}
+
+const ACTION_MAP: Record<
+  string,
+  { verb: string | ((detail: string) => string); subject: (detail: string, ref: string) => string }
+> = {
   created:            { verb: "created",           subject: (_d, r) => `Payment Request ${r}` },
   edited:             { verb: "updated",           subject: (_d, r) => `Payment Request ${r}` },
   submitted:          { verb: "submitted",         subject: (_d, r) => `Payment Request ${r}` },
@@ -29,7 +50,7 @@ const ACTION_MAP: Record<string, { verb: string; subject: (detail: string, ref: 
   voided:             { verb: "voided",            subject: (_d, r) => `Payment Request ${r}` },
   cancelled:          { verb: "cancelled",         subject: (_d, r) => `Payment Request ${r}` },
   status_changed:     { verb: "updated status of", subject: (_d, r) => `Payment Request ${r}` },
-  published_to_xero:  { verb: "published",         subject: (_d, r) => `Payment Request ${r} to Xero` },
+  published_to_xero:  { verb: publishVerb,         subject: (_d, r) => `Payment Request ${r} to Xero` },
   attachment_uploaded: { verb: "uploaded",          subject: (d) => d.match(/File '(.+?)'/)?.[1] || "attachment" },
   attachment_deleted:  { verb: "removed",           subject: (d) => d.match(/Attachment '(.+?)'/)?.[1] || "attachment" },
   payment_created:    { verb: "recorded",           subject: (d) => { const m = d.match(/Payment of ([\d,.]+)/); return m ? `Payment of ${m[1]}` : "Payment"; } },
@@ -236,7 +257,11 @@ function auditToItem(audit: AuditItem, billRef: string): ActivityHistoryItem {
   const { displayName, initials } = auditDisplayNameAndInitials(audit);
 
   const mapping = ACTION_MAP[audit.action];
-  const verb = mapping?.verb ?? audit.action.replace(/_/g, " ");
+  const mappedVerb = mapping?.verb;
+  const verb =
+    typeof mappedVerb === "function"
+      ? mappedVerb(audit.detail)
+      : mappedVerb ?? audit.action.replace(/_/g, " ");
   const subject = mapping?.subject(audit.detail, billRef) ?? `Payment Request ${billRef}`;
 
   return {

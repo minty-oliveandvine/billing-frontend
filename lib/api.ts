@@ -954,6 +954,54 @@ export function fetchMe(): Promise<unknown> {
   return apiFetch("/auth/me");
 }
 
+/**
+ * Tells the server the user is signing out, then resolves either way.
+ *
+ * The billing cookies are cleared client-side by `clearAuth()`, so this call is
+ * not what ends the session — it is what drops the user's sign-in presence, which
+ * is how Minty's Settings > Users decides who to list. Every Log out button has to
+ * make it, or signing out from that screen leaves the person listed as present.
+ *
+ * Never throws, and deliberately bypasses `apiFetch`: that wrapper answers an
+ * expiring or rejected token by redirecting to login, which would hijack the
+ * navigation the caller is about to perform. A logout the user asked for must not
+ * be blocked by a network failure either; the worst case is a stale row that ages
+ * out of the presence window on its own.
+ */
+export async function logoutSession(): Promise<void> {
+  const auth = getAuth();
+  if (!auth?.token) return;
+  try {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        "X-Entity-Id": auth.entityId,
+      },
+    });
+  } catch {
+    // proceed with local logout even if the server call fails
+  }
+}
+
+export type DeactivateAccountResponse = {
+  detail: string;
+};
+
+/**
+ * Signs the user out of Minty for good — the ACCOUNT, not one company.
+ *
+ * Deactivates rather than deletes: everything they recorded stays attributed to them,
+ * and the account is switched off so it can no longer sign in.
+ *
+ * Allowed to throw, unlike `logoutSession`. The server refuses while the user's card
+ * pays for any company, and that refusal is a 422 naming them, written for a person.
+ * `ApiError` passes `detail` through untouched, so the caller shows it as-is.
+ */
+export function deactivateAccount(): Promise<DeactivateAccountResponse> {
+  return apiFetch<DeactivateAccountResponse>("/profile/me", { method: "DELETE" });
+}
+
 export type ProfileUpdatePayload = {
   email: string;
   first_name: string;

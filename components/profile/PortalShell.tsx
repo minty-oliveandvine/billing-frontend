@@ -9,6 +9,7 @@ import {
   PortalTabs,
   type PortalTabId,
 } from "@/components/profile/PortalTabs";
+import { logoutSession } from "@/lib/api";
 import { clearAuth, getAuth, type AuthInfo } from "@/lib/auth";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 
@@ -50,7 +51,10 @@ export function PortalShell({
     setAuth(getAuth());
   }, []);
 
-  const handleLogout = () => {
+  // Server call drops sign-in presence; the Minty session survives so the entity
+  // list is still reachable. See app/profile/page.tsx.
+  const handleLogout = async () => {
+    await logoutSession();
     clearAuth();
     window.location.href = `${MODULE1_URL}/entity`;
   };

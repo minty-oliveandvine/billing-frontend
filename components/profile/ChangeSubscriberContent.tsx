@@ -1,47 +1,61 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
+  cancelTransfer,
+  initiateTransfer,
   inviteAdminToEntity,
   fetchSubscriberOptions,
   PortalError,
   type SubscriberOptions,
 } from "@/lib/payerPortal";
 
+function money(amount: number, currency: string | null) {
+  const major = (amount / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${currency ? `${currency} ` : ""}${major}`;
+}
+
+function day(iso: string | null | undefined) {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime())
+    ? ""
+    : parsed.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+}
+
 /**
  * "Change subscriber" — the screen behind that item on the subscriptions row menu.
  *
- * READ ONLY, deliberately and completely. Both actions render disabled and neither is a
- * styling decision:
+ * It OFFERS the handover; it does not perform one. Picking someone here sends them a
+ * request, and nothing about the company changes until they accept — at which point
+ * Minty charges THEM for the days the current payer's money does not cover, and the
+ * subscription moves. That asymmetry is the whole design: the bill can only be handed to
+ * someone who agrees to pay it, so one side proposes and the other consents.
  *
- * 1. HANDING OVER THE BILL HAS NO ROUTE. `payer_user_id` sits on every module row, the
- *    billing account, the invoices and the audit log, and one-payer-per-entity is an
- *    invariant `upsert_module_row` enforces. Moving it is not an UPDATE — it is a
- *    question about the period already paid for, the anchor the new payer bills on and
- *    whose card renews it, and none of those have answers yet.
+ * Two things arrive from the server rather than being decided here, and both matter:
  *
- * 2. INVITING SOMEONE IS NOT THIS SCREEN'S JOB EITHER. Minty's invite flow
- *    (`POST /minty/api/invitation/send`) takes a role and lands the person in the entity,
- *    which is a membership change made from the Settings user list. A second door to it
- *    here — one that then cannot do the thing the user came for — would be worse than
- *    the greyed button.
+ * 1. `blockers` — why the handover cannot go ahead, in Minty's own words. A trial still
+ *    running, a debt outstanding, an unbilled cancellation charge. Shown BEFORE the click,
+ *    because the alternative is learning it by being refused.
+ * 2. `quote` — what the incoming payer will actually be charged, priced by the same
+ *    function that takes the money, so the figure shown and the figure charged cannot
+ *    disagree.
  *
- * The list itself is real: the Settings user list narrowed to admins, from the same
- * `user_entity` table with the same approved-only filter, because the bill can only sit
- * with someone who could act on it.
+ * The candidate list is the Settings user list narrowed to admins whose ACCOUNT is also
+ * live — an offer to a deactivated admin can never be accepted, and it would freeze the
+ * current payer's own exit behind an inbox nobody can open.
  */
 
 const SECTION = "text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9AA3AE]";
-
-const UNAVAILABLE_CHANGE =
-  "Handing an entity to a different payer isn't wired up yet — the period already paid for, the billing anchor and the card all move with it.";
-/**
- * The invite is LIVE; changing the subscriber is not. They look adjacent on this screen
- * and are not the same act: inviting adds a member to the company, which is reversible
- * and moves no money. Handing over the bill has to survive the period already paid for.
- */
 
 function Initials({ name, email }: { name: string; email: string }) {
   const source = (name || email || "?").trim();
@@ -71,6 +85,91 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [invited, setInvited] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+
+  const pending = data?.pending_transfer ?? null;
+  const blockers = data?.blockers ?? [];
+  // The price follows the SELECTION, because it is a fact about the person accepting —
+  // their billing anchor decides where the charged window ends.
+  const quote =
+    data?.candidates.find((c) => c.id === selected)?.quote ?? null;
+
+  /**
+   * Re-read the screen from the server.
+   *
+   * Called after every successful write, and that is not a refinement — without it the
+   * page cannot show what just happened. Sending a request creates a pending offer, which
+   * changes this screen from "pick someone" to "a request is waiting, withdraw it?"; that
+   * state lives in `pending_transfer`, which only arrives in a fetch. Leaving the stale
+   * payload in place left a success message above a Send button that was now disabled
+   * (nothing selected) with no pending banner — the write had worked and the screen said
+   * nothing about it.
+   *
+   * Re-reading rather than patching the payload locally, for the same reason the incoming
+   * list does: the server also recomputes `blockers` and the quote, and what it says is
+   * now true is worth more than what this component can infer.
+   */
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!entityId) return;
+      try {
+        const result = await fetchSubscriberOptions(entityId, signal);
+        setData(result);
+        setError(null);
+        // Nothing pre-selected. The current payer is a row like any other here, and
+        // starting with them ticked would make "no change" look like a choice made.
+        setSelected(null);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(
+          err instanceof PortalError
+            ? err.message
+            : "Hmm, that didn't come through. Let's give it another go?",
+        );
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [entityId],
+  );
+
+  const send = async () => {
+    if (!entityId || !selected) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      setSent(await initiateTransfer(entityId, selected));
+      await load();
+    } catch (e) {
+      // A 422 is a stated reason — "that person needs a saved payment method" — and it
+      // arrives already worded for the person who clicked.
+      setSendError(
+        e instanceof PortalError
+          ? e.message
+          : "That request didn't send. Let's try again?",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const withdraw = async () => {
+    if (!pending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      setSent(await cancelTransfer(pending.id));
+      await load();
+    } catch (e) {
+      setSendError(
+        e instanceof PortalError ? e.message : "That didn't go through. Let's try again?",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
 
   const sendInvite = async () => {
     if (!entityId || !invite.trim()) return;
@@ -100,32 +199,13 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
     : "No company was picked. Open this from a row on Manage Subscriptions.";
 
   useEffect(() => {
-    if (!entityId) return;
     const controller = new AbortController();
     // No `setLoading(true)` to open with: it already starts true whenever there is an
     // entity to load, and this runs once — the entity comes from the URL and does not
     // change under the page.
-    fetchSubscriberOptions(entityId, controller.signal)
-      .then((result) => {
-        setData(result);
-        setError(null);
-        // Nothing pre-selected. The current payer is a row like any other here, and
-        // starting with them ticked would make "no change" look like a choice made.
-        setSelected(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(
-          err instanceof PortalError
-            ? err.message
-            : "Hmm, that didn't come through. Let's give it another go?",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    load(controller.signal);
     return () => controller.abort();
-  }, [entityId]);
+  }, [load]);
 
   return (
     <div className="w-full max-w-[62rem]">
@@ -157,6 +237,35 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
             <span className="shrink-0 text-sm font-semibold text-[#2E9B9B]">Entity</span>
           </div>
 
+          {/* Why it can't go ahead, if it can't ------------------------------- */}
+          {/* Minty's own sentences. Shown here rather than on the click, because "this
+              company has a module still on trial" is something to know before choosing a
+              person, not after being refused. */}
+          {blockers.length > 0 ? (
+            <div
+              className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              role="status"
+            >
+              {blockers.map((reason) => (
+                <p key={reason}>{reason}</p>
+              ))}
+            </div>
+          ) : null}
+
+          {/* An offer already waiting ---------------------------------------- */}
+          {pending ? (
+            <div
+              className="mt-5 rounded-lg border border-[#CDE3F5] bg-[#F0F7FD] px-4 py-3 text-sm text-[#1C4A70]"
+              role="status"
+            >
+              <p className="font-semibold">A request is already waiting.</p>
+              <p className="mt-1">
+                Sent {day(pending.since)}. They haven&rsquo;t answered yet, and nothing has
+                changed. Withdraw it below if you&rsquo;d rather ask someone else.
+              </p>
+            </div>
+          ) : null}
+
           {/* The candidates ---------------------------------------------------- */}
           <p className={`mt-6 ${SECTION}`}>
             Select new subscriber for this entity{" "}
@@ -164,6 +273,22 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
               (Admin role only)
             </span>
           </p>
+
+          {/* What they'll be charged. Priced by the same function that takes the money,
+              so this figure and the invoice cannot disagree. */}
+          {quote && !pending ? (
+            <p className="mt-2 text-sm text-[#6B7380]">
+              They&rsquo;ll be charged{" "}
+              <span className="font-semibold text-[#21262E]">
+                {money(quote.amount, quote.currency)}
+              </span>{" "}
+              for {day(quote.covers_from)} to {day(quote.covers_to)} — the days after the
+              period you&rsquo;ve paid for, up to their own billing date.
+              {quote.anchor_is_new
+                ? " This also sets that billing date."
+                : ""}
+            </p>
+          ) : null}
 
           <div className="mt-4 flex flex-col gap-3">
             {loading ? (
@@ -255,32 +380,60 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
               {invited}
             </p>
           ) : null}
+
+          {/* Actions --------------------------------------------------------- */}
+          {/* INSIDE the success branch. Rendered outside it, the button went live on a
+              screen that had failed to load — offering to hand over a company whose name
+              could not even be fetched. */}
+          <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
+            <Link
+              href="/profile/subscriptions"
+              className="inline-flex cursor-pointer items-center justify-center rounded-[10px] border border-[#D8DEE4] bg-white px-6 py-3 text-[15px] font-semibold text-[#292E38] transition-colors hover:bg-[#F5F7FA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+            >
+              {pending ? "Back" : "Cancel"}
+            </Link>
+            {pending ? (
+              <button
+                type="button"
+                onClick={withdraw}
+                disabled={sending}
+                className="inline-flex cursor-pointer items-center justify-center rounded-[10px] border border-[#D8DEE4] bg-white px-6 py-3 text-[15px] font-semibold text-[#B42318] transition-colors hover:bg-[#FEF3F2] disabled:cursor-not-allowed disabled:text-[#B4BAC3]"
+              >
+                {sending ? "Withdrawing…" : "Withdraw request"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={send}
+                disabled={
+                  sending || !selected || selected === data?.current.id ||
+                  blockers.length > 0
+                }
+                className="inline-flex items-center justify-center rounded-[10px] bg-secondary px-6 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-secondary/40"
+              >
+                {sending ? "Sending…" : "Send request"}
+              </button>
+            )}
+          </div>
+
+          {sendError ? (
+            <p className="mt-3 text-right text-sm text-[#B42318]" role="alert">
+              {sendError}
+            </p>
+          ) : null}
+          {sent ? (
+            <p className="mt-3 text-right text-sm text-[#267347]" role="status">
+              {sent}
+            </p>
+          ) : null}
           </>
         )}
-
-        {/* Actions ----------------------------------------------------------- */}
-        <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
-          <Link
-            href="/profile/subscriptions"
-            className="inline-flex cursor-pointer items-center justify-center rounded-[10px] border border-[#D8DEE4] bg-white px-6 py-3 text-[15px] font-semibold text-[#292E38] transition-colors hover:bg-[#F5F7FA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
-          >
-            Cancel
-          </Link>
-          <button
-            type="button"
-            disabled
-            title={UNAVAILABLE_CHANGE}
-            className="inline-flex cursor-not-allowed items-center justify-center rounded-[10px] bg-secondary/40 px-6 py-3 text-[15px] font-semibold text-white"
-          >
-            Change subscriber
-          </button>
-        </div>
       </div>
 
       <p className="mt-4 max-w-[52rem] text-xs leading-relaxed text-[#6B7380]">
-        Read-only for now. The list is real — these are this company&rsquo;s admins — but
-        moving the bill to one of them is switched off until the handover has somewhere to
-        record what happens to the period already paid for.
+        Nothing changes until they accept. When they do, they&rsquo;re charged for the days
+        after the period you&rsquo;ve already paid for, and the subscription moves to their
+        billing account &mdash; your existing invoices stay on yours.
       </p>
     </div>
   );

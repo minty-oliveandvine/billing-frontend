@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Pagination } from "@/components/profile/Pagination";
@@ -11,6 +12,7 @@ import {
 import {
   buildEnterUrl,
   fetchPayerSubscriptions,
+  listIncomingTransfers,
   PortalError,
   type PayerSubscriptions,
   type PortalEntity,
@@ -109,8 +111,30 @@ export function ManageSubscriptionsContent() {
   const [direction, setDirection] = useState<SortDirection>("asc");
   const [page, setPage] = useState(1);
   const [reloadTick, setReloadTick] = useState(0);
+  /**
+   * Handovers offered TO this person, which are NOT in the table below.
+   *
+   * The table is payer-scoped — it lists companies you pay for — and a request is by
+   * definition about one you do not. So it can never appear as a row, and without a strip
+   * of its own this page would show nothing while a company waited on an answer.
+   *
+   * The profile also carries a card for these. That is not duplication: the card is the
+   * only route for someone who pays for nothing and therefore has an empty table here,
+   * while this strip is for someone who does pay and comes straight to this page.
+   */
+  const [requests, setRequests] = useState(0);
 
   // Debounce the box, not the request: typing "micro" should cost one call, not five.
+  useEffect(() => {
+    const controller = new AbortController();
+    // Silent on failure: this is an extra affordance, and putting an error banner over a
+    // working table because a count could not be read would be a worse page.
+    listIncomingTransfers(controller.signal)
+      .then((rows) => setRequests(rows.length))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setQuery(searchInput);
@@ -176,6 +200,27 @@ export function ManageSubscriptionsContent() {
 
   return (
     <div className="w-full">
+      {requests > 0 ? (
+        <Link
+          href="/profile/subscriptions/incoming"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#CDE3F5] bg-[#F0F7FD] px-5 py-4 transition-colors hover:bg-[#E4F1FB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+        >
+          <span className="min-w-0">
+            <span className="block text-[15px] font-bold text-[#1C4A70]">
+              {requests === 1
+                ? "1 subscription request is waiting for you"
+                : `${requests} subscription requests are waiting for you`}
+            </span>
+            <span className="mt-0.5 block text-sm text-[#3B6E96]">
+              Someone wants to hand a company&rsquo;s billing over to you.
+            </span>
+          </span>
+          <span className="shrink-0 rounded-[10px] bg-secondary px-5 py-2.5 text-sm font-semibold text-white">
+            Review {requests === 1 ? "request" : "requests"}
+          </span>
+        </Link>
+      ) : null}
+
       {/* NOT `overflow-hidden`, which is what a rounded card usually wants: it clips the
           row menus, worst on the last row, where the menu ran past the card's edge and
           lost "Cancel subscription". Nothing inside paints into the corners — the cells

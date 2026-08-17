@@ -15,10 +15,9 @@ import { buildEnterUrl, type PortalEntity } from "@/lib/payerPortal";
  * What DOES vary is which saved payment method that one account charges, and the Billing
  * tab is where that is chosen.
  *
- * "Change subscriber" stays, and is the genuine gap: handing an entity to a different
- * payer is a real operation with no write route, no proration preview and no audit entry
- * today. Its screen opens and is READ-ONLY — it can already answer "who could take this
- * over?" from the entity's admins — so it is worth more than a greyed row.
+ * "Change subscriber" is now live. It does not hand the company over on the spot — it
+ * OFFERS it, and the person offered has to accept and pay, because a bill can only move to
+ * someone who agrees to carry it. The screen behind it prices that and says what blocks it.
  *
  * The two that act leave for Minty. That is not a shortcut — subscribing and cancelling
  * run a proration preview and a confirmation the customer has to read, and both are gated
@@ -98,9 +97,10 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
       href: `/profile/invoices?entity=${encodeURIComponent(entity.entity_id)}`,
     },
     {
-      // Opens, but cannot act. The screen is read-only — it lists the admins the bill
-      // could sit with and leaves both of its buttons disabled — which is worth more
-      // than a greyed menu row: it answers "who could take this over?" today.
+      // The same screen withdraws a request that is already waiting, so there is no
+      // separate "cancel handover" item: one destination, and it knows which state the
+      // company is in. A second row would need to know that too, from data this menu
+      // does not have.
       label: "Change subscriber",
       href: `/profile/subscriptions/subscriber?entity=${encodeURIComponent(entity.entity_id)}`,
     },

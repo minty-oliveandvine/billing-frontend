@@ -115,12 +115,68 @@ export type SubscriberCandidate = {
   name: string;
   email: string;
   is_current: boolean;
+  /**
+   * What THIS person would be charged to take the company on, or null if it could not be
+   * priced. Per candidate, not per entity: the window ends at the recipient's own period
+   * end, derived from their billing anchor, so two admins whose cycles turn over on
+   * different days pay different amounts for the same handover.
+   */
+  quote?: TransferQuote | null;
+};
+
+/** What taking a company over costs the incoming payer, priced by Minty. */
+export type TransferQuote = {
+  amount: number;
+  currency: string;
+  /**
+   * The window actually CHARGED — from the handover instant, not from the start of the
+   * incoming payer's period. They differ by design: the period is that payer's whole
+   * cycle, and they only pay the part of it after the outgoing payer's money runs out.
+   * Quoting `period_start` tells someone they are paying for days already paid for.
+   */
+  covers_from: string;
+  covers_to: string;
+  period_start: string;
+  period_end: string;
+  anchor_at: string;
+  /** True when this handover is what establishes their billing date. Worth saying. */
+  anchor_is_new: boolean;
+};
+
+export type PendingTransfer = {
+  id: string;
+  to_user_id: string;
+  status: string;
+  since: string;
 };
 
 export type SubscriberOptions = {
   entity: { entity_id: string; entity_name: string };
   current: { id: string; name: string; email: string };
   candidates: SubscriberCandidate[];
+  /**
+   * Why the handover cannot go ahead, in Minty's words, or empty. Computed server-side so
+   * the screen can SAY so before the click — the alternative is learning that a trial is
+   * running by attempting a handover and being refused.
+   */
+  blockers?: string[];
+  /** An offer already waiting on this company. At most one. */
+  pending_transfer?: PendingTransfer | null;
+};
+
+/** A handover offered TO the signed-in user. */
+export type IncomingTransfer = {
+  id: string;
+  entity_id: string;
+  entity_name: string;
+  from_name: string;
+  from_user_id: string;
+  status: string;
+  expires_at: string;
+  amount: number | null;
+  currency: string | null;
+  quote: TransferQuote | null;
+  blockers: string[];
 };
 
 export class PortalError extends Error {
@@ -663,4 +719,67 @@ export async function fetchPayerInvoices(
     throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
   }
   return data;
+}
+
+// --- Change subscriber (write) -----------------------------------------------
+//
+// One-liners over `portalPost`, deliberately. It already carries the whole contract these
+// need — refresh-then-retry on a stale token, and a 422's stated reason passed through
+// untouched instead of flattened into generic copy — and `inviteAdminToEntity` above is
+// forty hand-rolled lines that re-derive exactly that. Do not copy it.
+
+/** Offer this company's subscription to another admin. */
+export async function initiateTransfer(
+  entityId: string,
+  toUserId: string,
+): Promise<string> {
+  const data = await portalPost<{ message?: string }>(
+    "/api/me/subscriptions/transfer",
+    { entity: entityId, to_user: toUserId },
+  );
+  return data?.message || "The handover request has been sent.";
+}
+
+/**
+ * Accept or decline a handover offered to you.
+ *
+ * Accepting TAKES A PAYMENT, so this is the one call on this screen that moves money.
+ * Safe to retry: Minty adopts an invoice already paid under the offer's key rather than
+ * raising a second one, so a double-click or a timeout costs nothing.
+ */
+export async function respondToTransfer(
+  transferId: string,
+  accept: boolean,
+): Promise<string> {
+  const data = await portalPost<{ message?: string }>(
+    "/api/me/subscriptions/transfer/respond",
+    { transfer: transferId, accept },
+  );
+  return data?.message || (accept ? "You're now the subscriber." : "Request declined.");
+}
+
+/** Withdraw an offer you made. */
+export async function cancelTransfer(transferId: string): Promise<string> {
+  const data = await portalPost<{ message?: string }>(
+    "/api/me/subscriptions/transfer/cancel",
+    { transfer: transferId },
+  );
+  return data?.message || "The handover request has been withdrawn.";
+}
+
+/**
+ * Handovers waiting for the signed-in user to answer.
+ *
+ * Scoped by the TOKEN, not by anything in the request — it returns companies the caller
+ * does not pay for, which is the whole point, so it cannot be narrowed client-side.
+ */
+export async function listIncomingTransfers(
+  signal?: AbortSignal,
+): Promise<IncomingTransfer[]> {
+  const data = await portalGet<{ transfers?: IncomingTransfer[] }>(
+    "/api/me/subscriptions/transfers",
+    new URLSearchParams(),
+    signal,
+  );
+  return Array.isArray(data?.transfers) ? data.transfers : [];
 }

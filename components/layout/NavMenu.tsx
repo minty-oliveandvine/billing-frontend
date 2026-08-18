@@ -207,19 +207,19 @@ export function NavMenu({ items, menuSections, companyAbbreviation = "---", onLo
                 </div>
               </div>
               <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-              {hasEntity ? (
-                <div className="flex shrink-0 justify-center px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
-                  <Image
-                    src="/cat.png"
-                    alt=""
-                    width={200}
-                    height={180}
-                    className="h-auto w-[min(100%,10rem)] object-contain object-bottom select-none"
-                    draggable={false}
-                    priority={false}
-                  />
-                </div>
-              ) : null}
+              {/* The cat sits at the bottom of the drawer on every page, entity
+                  selected or not — it is decoration, not navigation. */}
+              <div className="flex shrink-0 justify-center px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+                <Image
+                  src="/cat.png"
+                  alt=""
+                  width={200}
+                  height={180}
+                  className="h-auto w-[min(100%,10rem)] object-contain object-bottom select-none"
+                  draggable={false}
+                  priority={false}
+                />
+              </div>
             </div>
           </div>
         </nav>

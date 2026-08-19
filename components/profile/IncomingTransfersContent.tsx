@@ -8,6 +8,7 @@ import {
   PortalError,
   respondToTransfer,
   type IncomingTransfer,
+  type InheritedTrial,
 } from "@/lib/payerPortal";
 
 /**
@@ -19,9 +20,14 @@ import {
  * never been billed; a recipient landing on Manage Subscriptions sees nothing and would
  * reasonably conclude the email was a mistake.
  *
- * ACCEPTING TAKES A PAYMENT. That is stated on the button and priced above it, because
- * "Accept" on its own reads like acknowledging a notification rather than agreeing to a
- * recurring bill. The figure comes from Minty, from the same function that charges it.
+ * ACCEPTING USUALLY TAKES A PAYMENT, and the screen says which case it is rather than
+ * assuming. Where days have already been paid for by the outgoing payer, the incoming one
+ * buys the window their money does not cover, and the button says "Accept and pay". Where
+ * everything is still on a FREE TRIAL there is nothing to charge today — the free days
+ * carry over and the money comes at the conversion date — so the button says "Accept" and
+ * the panel says "Nothing to pay today". Promising a charge that does not happen, or
+ * hiding one that does, are both ways to lose the person's trust at the moment they are
+ * deciding. The figures come from Minty, from the same functions that charge them.
  *
  * Retrying is safe. Minty adopts an invoice already paid under the request's key rather
  * than raising a second one, so a double-click or a timeout costs nothing — which is why
@@ -46,6 +52,55 @@ function day(iso: string | null | undefined) {
         month: "short",
         year: "numeric",
       });
+}
+
+
+/**
+ * Trials the incoming payer takes on. Free now, charged on their card at the date shown.
+ *
+ * Stated before the button, because "Accept and pay" is only honest if the part that is
+ * paid LATER is named too — otherwise the first they hear of it is the bank line.
+ *
+ * `voice` exists because the SAME facts are read by two different people. On the accept
+ * screen the reader is the one who will pay, so it is "you". On Change subscriber the
+ * reader is the current payer choosing somebody else, and "you'll be charged" tells them
+ * the opposite of what happens — they are handing the bill away, not picking it up.
+ */
+function InheritedTrials({
+  trials,
+  voice = "you",
+}: {
+  trials: InheritedTrial[];
+  voice?: "you" | "they";
+}) {
+  if (!trials.length) return null;
+  // True when the person reading this is the one who will be charged.
+  const readerPays = voice === "you";
+  return (
+    <div className="mt-3 rounded-lg border border-[#CDE3F5] bg-[#F0F7FD] px-4 py-3 text-sm text-[#1C4A70]">
+      {trials.map((trial) => (
+        <p key={`${trial.trial_end}-${trial.codes.join()}`}>
+          <span className="font-semibold">{trial.label}</span> is on a free trial until{" "}
+          <span className="font-semibold">{day(trial.trial_end)}</span>.{" "}
+          {trial.amount != null ? (
+            <>
+              {readerPays ? "You’ll" : "They’ll"} be charged{" "}
+              <span className="font-semibold">
+                {money(trial.amount, trial.currency)}
+              </span>{" "}
+              then
+              {trial.anchor_is_new
+                ? `, and that sets ${readerPays ? "your" : "their"} monthly billing date`
+                : ""}
+              .
+            </>
+          ) : (
+            <>The trial carries over with the company.</>
+          )}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export function IncomingTransfersContent() {
@@ -148,6 +203,11 @@ export function IncomingTransfersContent() {
         const currency = quote ? quote.currency : row.currency;
         const blocked = row.blockers.length > 0;
         const working = busy === row.id;
+        const trials = row.trials ?? [];
+        // No figure AND something on trial means there is nothing to charge — not that
+        // pricing failed. The two look identical in the payload and read very differently
+        // to the person deciding, so they are told apart here rather than conflated.
+        const nothingDueNow = amount == null && trials.length > 0;
 
         return (
           <div
@@ -188,6 +248,18 @@ export function IncomingTransfersContent() {
                       : " After that it renews on your usual billing date."}
                   </p>
                 </>
+              ) : nothingDueNow ? (
+                /* NOT a pricing failure — there is genuinely nothing to charge. Every
+                   module is on a free trial, so the days are free and the money comes
+                   later, at the date shown below. Saying "we couldn't price this" here
+                   invents a problem and hides the real answer. */
+                <p className="text-[#21262E]">
+                  <span className="font-semibold">Nothing to pay today.</span>{" "}
+                  <span className="text-[#6B7380]">
+                    Everything on this company is still on a free trial, and those days
+                    carry over to you unchanged.
+                  </span>
+                </p>
               ) : (
                 <p className="text-[#6B7380]">
                   We couldn&rsquo;t price this request just now. Accepting will show you the
@@ -195,6 +267,8 @@ export function IncomingTransfersContent() {
                 </p>
               )}
             </div>
+
+            <InheritedTrials trials={trials} />
 
             {blocked ? (
               <div
@@ -236,7 +310,14 @@ export function IncomingTransfersContent() {
                   disabled={working}
                   className="inline-flex items-center justify-center rounded-[10px] bg-secondary px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-secondary/40"
                 >
-                  {working ? "Taking over…" : "Accept and pay"}
+                  {/* "and pay" only when something is actually charged now. On a
+                      trial-only handover nothing leaves their account today, and a button
+                      promising otherwise is the kind of thing people decline over. */}
+                  {working
+                    ? "Taking over…"
+                    : nothingDueNow
+                      ? "Accept"
+                      : "Accept and pay"}
                 </button>
               )}
             </div>

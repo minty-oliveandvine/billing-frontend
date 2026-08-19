@@ -122,6 +122,11 @@ export type SubscriberCandidate = {
    * different days pay different amounts for the same handover.
    */
   quote?: TransferQuote | null;
+  /**
+   * Trials THIS person would inherit — free days now, a charge on their card at the
+   * conversion date. Per candidate for the same reason the quote is.
+   */
+  trials?: InheritedTrial[];
 };
 
 /** What taking a company over costs the incoming payer, priced by Minty. */
@@ -141,6 +146,28 @@ export type TransferQuote = {
   anchor_at: string;
   /** True when this handover is what establishes their billing date. Worth saying. */
   anchor_is_new: boolean;
+};
+
+/**
+ * A free trial the incoming payer would INHERIT — free days now, a charge on their card
+ * at `trial_end`. One entry per conversion DATE, not per module: modules ending together
+ * convert in one bundled charge, and quoting them separately would show amounts that sum
+ * to more than the customer is charged.
+ */
+export type InheritedTrial = {
+  /**
+   * What the set is CALLED — the plan's own name, e.g. "Super Minty" for the bundle
+   * rather than "Petty Cash and Payment Request". Named by the set because it is priced
+   * by the set, and because that is the name that appears on the invoice.
+   */
+  label: string;
+  codes: string[];
+  trial_end: string;
+  /** Null when it could not be priced — the trial is still disclosed without a figure. */
+  amount: number | null;
+  currency: string | null;
+  /** True when this conversion is what will set their monthly billing date. */
+  anchor_is_new: boolean | null;
 };
 
 export type PendingTransfer = {
@@ -176,6 +203,7 @@ export type IncomingTransfer = {
   amount: number | null;
   currency: string | null;
   quote: TransferQuote | null;
+  trials: InheritedTrial[];
   blockers: string[];
 };
 

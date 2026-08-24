@@ -85,6 +85,7 @@ function ModuleSelectionContent() {
 
   const [showMinty, setShowMinty] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const navTimerRef = useRef<number | null>(null);
   const lastTouchTime = useRef(0);
   const lastPaymentTouchTime = useRef(0);
   const [loadingMintyPeek, setLoadingMintyPeek] = useState(false);
@@ -176,6 +177,31 @@ function ModuleSelectionContent() {
     }
   }, []);
 
+  // Back button out of a module = bfcache restore, not a fresh mount.
+  //
+  // Picking Petty Cash leaves this origin entirely (window.location.href to
+  // Module 1), so the browser freezes this document with isNavigating === true
+  // and the full-screen LoadingScreen painted over it. Coming back restores
+  // that exact frame: no remount, no state reset, so the spinner sits there
+  // forever with nothing left to navigate to. Clearing the flag on a persisted
+  // pageshow is what ends it.
+  //
+  // Also kill any navigation timer the freeze caught mid-flight — bfcache
+  // resumes pending timers on restore, and one firing here would throw the
+  // user straight back into the module they just backed out of.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      if (navTimerRef.current !== null) {
+        window.clearTimeout(navTimerRef.current);
+        navTimerRef.current = null;
+      }
+      setIsNavigating(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   useEffect(() => {
     if (!isNavigating) {
       setLoadingMintyPeek(false);
@@ -189,7 +215,8 @@ function ModuleSelectionContent() {
 
   const navigateToModule1 = () => {
     setIsNavigating(true);
-    window.setTimeout(() => {
+    navTimerRef.current = window.setTimeout(() => {
+      navTimerRef.current = null;
       window.location.href = module1Href;
     }, MIN_LOADING_MS);
   };
@@ -208,7 +235,8 @@ function ModuleSelectionContent() {
     setIsNavigating(true);
     // setAuth() was already called in the mount effect before router.replace()
     // cleaned the URL. No need to repeat it here.
-    window.setTimeout(() => {
+    navTimerRef.current = window.setTimeout(() => {
+      navTimerRef.current = null;
       router.push("/");
     }, MIN_LOADING_MS);
   };

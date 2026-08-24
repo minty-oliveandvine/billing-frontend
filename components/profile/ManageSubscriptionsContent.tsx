@@ -203,20 +203,15 @@ export function ManageSubscriptionsContent() {
       {requests > 0 ? (
         <Link
           href="/profile/subscriptions/incoming"
-          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#CDE3F5] bg-[#F0F7FD] px-5 py-4 transition-colors hover:bg-[#E4F1FB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+          className="mb-4 block rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 transition-colors hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
         >
-          <span className="min-w-0">
-            <span className="block text-[15px] font-bold text-[#1C4A70]">
-              {requests === 1
-                ? "1 subscription request is waiting for you"
-                : `${requests} subscription requests are waiting for you`}
-            </span>
-            <span className="mt-0.5 block text-sm text-[#3B6E96]">
-              Someone wants to hand a company&rsquo;s billing over to you.
-            </span>
+          <span className="block text-[15px] font-bold text-primary">
+            {requests === 1
+              ? "1 subscription request is waiting for you"
+              : `${requests} subscription requests are waiting for you`}
           </span>
-          <span className="shrink-0 rounded-[10px] bg-secondary px-5 py-2.5 text-sm font-semibold text-white">
-            Review {requests === 1 ? "request" : "requests"}
+          <span className="mt-0.5 block text-sm text-primary/70">
+            Someone wants to hand a company&rsquo;s billing over to you.
           </span>
         </Link>
       ) : null}

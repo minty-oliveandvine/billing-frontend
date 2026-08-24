@@ -196,6 +196,8 @@ export type IncomingTransfer = {
   id: string;
   entity_id: string;
   entity_name: string;
+  /** Minty PATH to the company's subscription, for `buildEnterUrl`. Never a URL. */
+  settings_path: string;
   from_name: string;
   from_user_id: string;
   status: string;

@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  buildEnterUrl,
   listIncomingTransfers,
   PortalError,
   respondToTransfer,
   type IncomingTransfer,
-  type InheritedTrial,
 } from "@/lib/payerPortal";
+import { day, money } from "@/lib/payerPortalFormat";
+
+import { InheritedTrials } from "./InheritedTrials";
 
 /**
  * Requests to take over a company's subscription.
@@ -34,74 +37,6 @@ import {
  * the button re-enables after a failure instead of locking.
  */
 
-function money(amount: number, currency: string | null) {
-  const major = (amount / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${currency ? `${currency} ` : ""}${major}`;
-}
-
-function day(iso: string | null | undefined) {
-  if (!iso) return "";
-  const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime())
-    ? ""
-    : parsed.toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
-}
-
-
-/**
- * Trials the incoming payer takes on. Free now, charged on their card at the date shown.
- *
- * Stated before the button, because "Accept and pay" is only honest if the part that is
- * paid LATER is named too — otherwise the first they hear of it is the bank line.
- *
- * `voice` exists because the SAME facts are read by two different people. On the accept
- * screen the reader is the one who will pay, so it is "you". On Change subscriber the
- * reader is the current payer choosing somebody else, and "you'll be charged" tells them
- * the opposite of what happens — they are handing the bill away, not picking it up.
- */
-function InheritedTrials({
-  trials,
-  voice = "you",
-}: {
-  trials: InheritedTrial[];
-  voice?: "you" | "they";
-}) {
-  if (!trials.length) return null;
-  // True when the person reading this is the one who will be charged.
-  const readerPays = voice === "you";
-  return (
-    <div className="mt-3 rounded-lg border border-[#CDE3F5] bg-[#F0F7FD] px-4 py-3 text-sm text-[#1C4A70]">
-      {trials.map((trial) => (
-        <p key={`${trial.trial_end}-${trial.codes.join()}`}>
-          <span className="font-semibold">{trial.label}</span> is on a free trial until{" "}
-          <span className="font-semibold">{day(trial.trial_end)}</span>.{" "}
-          {trial.amount != null ? (
-            <>
-              {readerPays ? "You’ll" : "They’ll"} be charged{" "}
-              <span className="font-semibold">
-                {money(trial.amount, trial.currency)}
-              </span>{" "}
-              then
-              {trial.anchor_is_new
-                ? `, and that sets ${readerPays ? "your" : "their"} monthly billing date`
-                : ""}
-              .
-            </>
-          ) : (
-            <>The trial carries over with the company.</>
-          )}
-        </p>
-      ))}
-    </div>
-  );
-}
 
 export function IncomingTransfersContent() {
   const [rows, setRows] = useState<IncomingTransfer[] | null>(null);
@@ -216,9 +151,26 @@ export function IncomingTransfersContent() {
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="break-words text-[17px] font-bold text-[#21262E]">
+                {/* Through to the company's subscription — the thing actually being
+                    handed over. Someone deciding whether to take on a bill should be able
+                    to look at what they are being asked to pay for, and the request
+                    carries no other way in.
+
+                    Reachable for them: MODULE_VIEW gates that page at CASHIER and the
+                    recipient is an admin of the company, so reading it needs no payer
+                    rights. Deciding is not the same as managing.
+
+                    `buildEnterUrl` rather than `buildMintyEnterUrl`: the billing token
+                    was minted for a DIFFERENT entity, and this screen is about the other
+                    ones. Minty's /enter re-establishes the session from the token's user
+                    and the destination applies its own gates, so this hands over a
+                    target, not an authorisation. */}
+                <a
+                  href={buildEnterUrl(row.entity_id, row.settings_path)}
+                  className="break-words text-[17px] font-bold text-[#2E9B9B] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+                >
                   {row.entity_name || "A company"}
-                </p>
+                </a>
                 <p className="mt-1 break-words text-sm text-[#6B7380]">
                   {row.from_name} has asked you to become the subscriber.
                 </p>
@@ -251,24 +203,25 @@ export function IncomingTransfersContent() {
               ) : nothingDueNow ? (
                 /* NOT a pricing failure — there is genuinely nothing to charge. Every
                    module is on a free trial, so the days are free and the money comes
-                   later, at the date shown below. Saying "we couldn't price this" here
-                   invents a problem and hides the real answer. */
-                <p className="text-[#21262E]">
-                  <span className="font-semibold">Nothing to pay today.</span>{" "}
-                  <span className="text-[#6B7380]">
-                    Everything on this company is still on a free trial, and those days
-                    carry over to you unchanged.
-                  </span>
-                </p>
+                   later, at the date named by the trials line below. Saying "we couldn't
+                   price this" here invents a problem and hides the real answer.
+
+                   Just the lead: which modules are on trial, until when and for how much
+                   is the very next line in this panel, so spelling it out again here was
+                   the same fact told twice. */
+                <p className="font-semibold text-[#21262E]">Nothing to pay today.</p>
               ) : (
                 <p className="text-[#6B7380]">
                   We couldn&rsquo;t price this request just now. Accepting will show you the
                   amount before anything is charged.
                 </p>
               )}
-            </div>
 
-            <InheritedTrials trials={trials} />
+              {/* Inside the money panel, not under it. What is owed today and what is
+                  owed when the trial converts are one answer to one question, and as
+                  separate boxes they read as two unrelated findings. */}
+              <InheritedTrials trials={trials} framed={false} />
+            </div>
 
             {blocked ? (
               <div

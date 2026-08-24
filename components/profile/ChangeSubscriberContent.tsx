@@ -9,29 +9,11 @@ import {
   inviteAdminToEntity,
   fetchSubscriberOptions,
   PortalError,
-  type InheritedTrial,
   type SubscriberOptions,
 } from "@/lib/payerPortal";
+import { day, money } from "@/lib/payerPortalFormat";
 
-function money(amount: number, currency: string | null) {
-  const major = (amount / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${currency ? `${currency} ` : ""}${major}`;
-}
-
-function day(iso: string | null | undefined) {
-  if (!iso) return "";
-  const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime())
-    ? ""
-    : parsed.toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
-}
+import { InheritedTrials } from "./InheritedTrials";
 
 /**
  * "Change subscriber" — the screen behind that item on the subscriptions row menu.
@@ -55,55 +37,6 @@ function day(iso: string | null | undefined) {
  * live — an offer to a deactivated admin can never be accepted, and it would freeze the
  * current payer's own exit behind an inbox nobody can open.
  */
-
-
-/**
- * Trials the incoming payer takes on. Free now, charged on their card at the date shown.
- *
- * Stated before the button, because "Accept and pay" is only honest if the part that is
- * paid LATER is named too — otherwise the first they hear of it is the bank line.
- *
- * `voice` exists because the SAME facts are read by two different people. On the accept
- * screen the reader is the one who will pay, so it is "you". On Change subscriber the
- * reader is the current payer choosing somebody else, and "you'll be charged" tells them
- * the opposite of what happens — they are handing the bill away, not picking it up.
- */
-function InheritedTrials({
-  trials,
-  voice = "you",
-}: {
-  trials: InheritedTrial[];
-  voice?: "you" | "they";
-}) {
-  if (!trials.length) return null;
-  // True when the person reading this is the one who will be charged.
-  const readerPays = voice === "you";
-  return (
-    <div className="mt-3 rounded-lg border border-[#CDE3F5] bg-[#F0F7FD] px-4 py-3 text-sm text-[#1C4A70]">
-      {trials.map((trial) => (
-        <p key={`${trial.trial_end}-${trial.codes.join()}`}>
-          <span className="font-semibold">{trial.label}</span> is on a free trial until{" "}
-          <span className="font-semibold">{day(trial.trial_end)}</span>.{" "}
-          {trial.amount != null ? (
-            <>
-              {readerPays ? "You’ll" : "They’ll"} be charged{" "}
-              <span className="font-semibold">
-                {money(trial.amount, trial.currency)}
-              </span>{" "}
-              then
-              {trial.anchor_is_new
-                ? `, and that sets ${readerPays ? "your" : "their"} monthly billing date`
-                : ""}
-              .
-            </>
-          ) : (
-            <>The trial carries over with the company.</>
-          )}
-        </p>
-      ))}
-    </div>
-  );
-}
 
 const SECTION = "text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9AA3AE]";
 
@@ -308,7 +241,7 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
           {/* An offer already waiting ---------------------------------------- */}
           {pending ? (
             <div
-              className="mt-5 rounded-lg border border-[#CDE3F5] bg-[#F0F7FD] px-4 py-3 text-sm text-[#1C4A70]"
+              className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-primary"
               role="status"
             >
               <p className="font-semibold">A request is already waiting.</p>

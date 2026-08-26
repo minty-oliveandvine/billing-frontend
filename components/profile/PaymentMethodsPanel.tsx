@@ -21,19 +21,19 @@ import {
  *
  * A ROW USED TO BE A COMPANY, and that was the misreading this table was built to end:
  * the account's single card was reprinted under every company name, so three rows looked
- * like three billing accounts holding three cards. There is one. `user_stripe_customer`
- * is a single row per payer — one currency, one anchor, one dunning clock — and the
- * renewal raises ONE invoice against that customer with a line per company. What varies
- * is not the account, it is which saved method that invoice is charged to.
+ * like three billing accounts holding three cards. The rows are the METHODS, and the two
+ * columns that genuinely belonged to a company (plan, status) live on Manage
+ * Subscriptions, which is the tab about companies.
  *
- * So the rows are the methods, and the two columns that genuinely belonged to a company
- * (plan, status) live on Manage Subscriptions, which is the tab about companies.
+ * WHICH CARD PAYS FOR WHICH COMPANY IS NOT DECIDED HERE. Each company is nominated onto
+ * one saved method — Manage Subscriptions → ⋮ → "Change billing account" — and a renewal
+ * raises one invoice per card, charged to that card. This screen is the wallet: what is
+ * saved, what is expiring, and what can be removed.
  *
- * ONLY THE DEFAULT IS CHARGED. Renewals and dunning bill
- * `invoice_settings.default_payment_method` and nothing else; the rest of the list is
- * there so a payer can save next year's card before this year's expires and switch on
- * their own date rather than on a failed renewal. Promoting one changes what charges every
- * company on the account, which is why the menu item says so.
+ * THE DEFAULT NOMINATES NOTHING. It is the card the pickers offer first, and therefore
+ * what a newly nominated company is likely to end up on. Promoting one here changes what
+ * is charged for nothing that is already running — it used to change it for everything,
+ * which is why the wording matters.
  *
  * The card never reaches this app — see `AddPaymentMethodModal`. Every field rendered
  * here is display metadata Stripe hands back about a card it holds: brand, last four,
@@ -76,10 +76,10 @@ const fieldClass = `h-11 w-full rounded-lg border border-[#D8DEE4] bg-white px-3
 const labelClass = "block text-[13px] font-semibold text-[#4B5563]";
 
 const overlayClass =
-  "fixed inset-0 z-[460] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/45 p-3 sm:p-4";
+  "dlg-overlay-in fixed inset-0 z-[460] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/45 p-3 sm:p-4";
 
 const shellClass =
-  "relative z-[1] my-auto w-full min-w-0 max-w-[480px] overflow-hidden rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/5 sm:p-6";
+  "dlg-in relative z-[1] my-auto w-full min-w-0 max-w-[480px] overflow-hidden rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/5 sm:p-6";
 
 // --- The status column -------------------------------------------------------
 //
@@ -94,12 +94,17 @@ const shellClass =
 
 type ExpiryState = "expired" | "expiring" | null;
 
-const DEFAULT_PILL = "bg-[#D6EDD9] text-[#267347]";
-const SAVED_PILL = "bg-[#F2F5F7] text-[#949CA6]";
+/**
+ * The flag pills, in the shape every card list in the product uses: a bordered
+ * `rounded-full` capsule rather than the square borderless chip this table had of its own.
+ * Same fact, same card, three apps — it should not be three different-looking labels.
+ */
+const DEFAULT_PILL = "border-[#b5ddbd] bg-[#d6edd9] text-[#267347]";
+const SAVED_PILL = "border-[#e3e8ec] bg-[#f2f5f7] text-[#949ca6]";
 
 const EXPIRY_STYLES: Record<"expired" | "expiring", string> = {
-  expired: "bg-[#FDE2E1] text-[#B42318]",
-  expiring: "bg-[#FCE6BD] text-[#9E690D]",
+  expired: "border-[#ffcccc] bg-[#fff1f1] text-[#b4231f]",
+  expiring: "border-[#f2d59b] bg-[#fce6bd] text-[#9e690d]",
 };
 
 const EXPIRY_LABELS: Record<"expired" | "expiring", string> = {
@@ -156,10 +161,17 @@ function typeOf(method: SavedPaymentMethod): string {
     .join(" · ");
 }
 
-/** "Mastercard •••• •••• •••• 7068", the way the design prints it. */
+/**
+ * "Mastercard •••• 7068".
+ *
+ * ONE group of dots, not four. The long form printed the same card as
+ * "Mastercard •••• •••• •••• 7068" here and "Mastercard •••• 7068" in every picker, which
+ * is a difference a payer comparing the two screens has to stop and resolve. The short
+ * form wins because the pickers are where a card is chosen and the row is narrow there.
+ */
 function methodLine(method: SavedPaymentMethod): string {
   if (!method.last4) return method.label;
-  return `${method.brand_label} •••• •••• •••• ${method.last4}`;
+  return `${method.brand_label} •••• ${method.last4}`;
 }
 
 function sortValue(method: SavedPaymentMethod, key: SortKey): string | number {
@@ -176,7 +188,7 @@ function sortValue(method: SavedPaymentMethod, key: SortKey): string | number {
 }
 
 const pillClass =
-  "inline-flex shrink-0 items-center rounded-md px-2.5 py-1 text-[12.5px] font-semibold leading-[15px]";
+  "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11.5px] font-bold tracking-[0.02em]";
 
 function StatusCell({ method }: { method: SavedPaymentMethod }) {
   const expiry = expiryStateOf(method);
@@ -553,8 +565,9 @@ function RowMenu({
             dropUp ? "bottom-9" : "top-9"
           }`}
         >
-          {/* Account-wide, and the title says so: there is one invoice per payer, so the
-              default decides what charges every company on it. */}
+          {/* The title has to say what this does NOT do. Companies keep the card they
+              are on; the default is only what the pickers offer first. Calling it "make
+              default" without that reads as "charge everything to this". */}
           <button
             type="button"
             role="menuitem"
@@ -562,8 +575,8 @@ function RowMenu({
             disabled={method.is_default}
             title={
               method.is_default
-                ? "Your invoices are already charged to this method."
-                : "Applies to every company on this billing account."
+                ? "This is already the account's main payment method."
+                : "Offered first when a company is put on a card. Companies already billing keep theirs."
             }
             onClick={() => {
               setOpen(false);
@@ -725,10 +738,18 @@ export function PaymentMethodsPanel() {
           <div className="min-w-0">
             <h2 className="text-base font-bold text-[#21262E]">Billing accounts</h2>
             {/* The one thing this screen has to say out loud, because a list of cards
-                above a subscription tab invites the opposite reading. */}
+                above a subscription tab invites the opposite reading.
+
+                IT USED TO SAY invoices are charged to the one marked Default, and that
+                stopped being true when each company got its own card: the default
+                nominates nothing (see payment_methods.set_default), it only decides what
+                the pickers offer first. Left as it was, this line told a payer their
+                money followed a card it does not follow. */}
             <p className="mt-1 text-[13px] text-[#6B7380]">
-              Used for every company you pay for. Invoices are charged to the one marked{" "}
-              <span className="font-semibold text-[#4B5563]">Default</span>.
+              Used for every company you pay for. Each company is billed to the card it was
+              put on;{" "}
+              <span className="font-semibold text-[#4B5563]">Default</span> is only the one
+              card pickers offer first.
             </p>
           </div>
           {/* The action lives up here so the footer is free for the count and the pager,
@@ -929,7 +950,7 @@ export function PaymentMethodsPanel() {
 
       <AddPaymentMethodModal
         open={adding}
-        forceDefault={(data?.methods.length ?? 0) === 0}
+        firstCard={(data?.methods.length ?? 0) === 0}
         onSaved={applied}
         onClose={() => setAdding(false)}
       />

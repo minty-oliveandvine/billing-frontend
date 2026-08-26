@@ -34,6 +34,35 @@ html {
   text-size-adjust: 100%;
 }
 
+/* --- Dialog entrance -------------------------------------------------------
+   The one shared with Minty's dialogs and onboarding's sheet: a 150ms fade on the scrim
+   and a 180ms fade-and-rise on the panel. Applied with `.dlg-overlay-in` / `.dlg-in`
+   rather than Tailwind's `animate-*`, so the three apps can be read side by side.
+
+   TRANSLATE ONLY — NEVER SCALE. `transform: scale()` changes what getBoundingClientRect
+   reports, and Stripe measures the box it mounts into. A panel still scaling at 0.98 when
+   the Elements iframe mounts lays the card form out to a width the dialog does not have.
+   A translate moves the box without resizing it, so the same entrance is safe on the one
+   dialog that hosts an iframe.
+
+   ENTER ONLY. Closing is instant, because animating it means keeping a closed dialog
+   mounted for the length of its exit — a `closing` state on every dialog, and a class of
+   bug where a dialog that fails to finish animating never goes away at all. */
+@keyframes dlgOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dlgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dlg-overlay-in { animation: dlgOverlayIn 0.15s ease-out both; }
+.dlg-in { animation: dlgIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Asked not to move, it does not move. The dialog still appears; it simply arrives
+   rather than travelling. */
+@media (prefers-reduced-motion: reduce) {
+  .dlg-overlay-in, .dlg-in { animation: none; }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -493,6 +493,19 @@ export type PayerPaymentMethods = {
   total: number;
 };
 
+export type EntityPaymentMethod = PayerPaymentMethods & {
+  entity_id: string;
+  /**
+   * The card THIS company is billed to, or null if it has none yet.
+   *
+   * Distinct from `default_id` on purpose, and the difference is the whole screen: this
+   * is what will be charged for this company, the default is only what the picker offers
+   * first. A company with `nominated_id: null` is not billed on the default — it is not
+   * billed at all.
+   */
+  nominated_id: string | null;
+};
+
 export type SetupIntentHandle = {
   /** Authorises the browser to confirm THIS intent and nothing else. */
   client_secret: string;
@@ -609,13 +622,53 @@ export async function confirmCardSetup(
   );
 }
 
-/** Nominate the method every future invoice is charged to — account-wide. */
+/**
+ * Make one method the account's main card.
+ *
+ * It NOMINATES NOTHING. Every company is billed on the card it was put on, so this
+ * changes what is charged for nothing already running — it decides which card the pickers
+ * offer first. `setEntityPaymentMethod` is the write with billing consequences.
+ */
 export async function setDefaultPaymentMethod(
   paymentMethod: string,
 ): Promise<PayerPaymentMethods> {
   return portalPost<PayerPaymentMethods>(
     "/api/me/billing/payment-methods/default",
     { payment_method: paymentMethod },
+  );
+}
+
+/** The saved methods, plus which one this company is billed on (`nominated_id`). */
+export async function fetchEntityPaymentMethod(
+  entityId: string,
+  signal?: AbortSignal,
+): Promise<EntityPaymentMethod> {
+  const data = await portalGet<EntityPaymentMethod>(
+    "/api/me/billing/entity-payment-method",
+    new URLSearchParams({ entity: entityId }),
+    signal,
+  );
+  if (!data || !Array.isArray(data.methods)) {
+    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+  }
+  return data;
+}
+
+/**
+ * Put ONE company on ONE saved card.
+ *
+ * The write with billing consequences on this surface, and they stop at the company
+ * named: its renewals, purchases and trial conversion are charged there from now on, and
+ * nothing else the payer owns moves. Refusals arrive as stated sentences — a card that is
+ * not the caller's, and a company they do not pay for, both answer "couldn't be found".
+ */
+export async function setEntityPaymentMethod(
+  entityId: string,
+  paymentMethod: string,
+): Promise<EntityPaymentMethod> {
+  return portalPost<EntityPaymentMethod>(
+    "/api/me/billing/entity-payment-method",
+    { entity: entityId, payment_method: paymentMethod },
   );
 }
 

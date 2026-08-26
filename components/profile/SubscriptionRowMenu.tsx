@@ -2,18 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { EntityBillingAccountDialog } from "@/components/profile/EntityBillingAccountDialog";
 import { buildEnterUrl, type PortalEntity } from "@/lib/payerPortal";
 
 /**
  * The per-row kebab.
  *
- * "Change billing account" USED TO BE HERE, greyed out with a reason attached, on the
- * argument that a known gap beats a quietly redesigned menu. It is gone now, because the
- * gap was never real: there is ONE billing account per payer — one Stripe customer, one
- * anchor, one dunning clock, one invoice with a line per company — so there is no second
- * account to move an entity to. The item promised a feature the model has no room for.
- * What DOES vary is which saved payment method that one account charges, and the Billing
- * tab is where that is chosen.
+ * "Change billing account" was here once, DISABLED, then removed, on the argument that
+ * there was nothing behind it: a payer had one Stripe customer, one anchor, one dunning
+ * clock and one invoice with a line per company, so no single company could be moved
+ * anywhere. It is back, and live, because that constraint is gone. Each company is billed
+ * on the card it was put on — a `payer_billing_group`, which owns that card's paid-through
+ * and its own retry clock — and a renewal raises one invoice per card. Choosing there
+ * changes what THIS company is charged to and moves nothing else the payer owns.
+ *
+ * It is also the only item that acts IN PLACE. The rest lead somewhere because they start
+ * something longer; picking one of a handful of saved cards does not, and a new URL would
+ * lose the row the menu was opened from. It sits under "View invoices" — the reading items
+ * first, then the one that changes how this company is billed, then the two that end or
+ * hand over the relationship.
+ *
+ * The Billing tab still has a default. It nominates nothing: it is the card the pickers
+ * offer first.
  *
  * "Change subscriber" is now live. It does not hand the company over on the spot — it
  * OFFERS it, and the person offered has to accept and pay, because a bill can only move to
@@ -28,6 +38,8 @@ import { buildEnterUrl, type PortalEntity } from "@/lib/payerPortal";
 type MenuItem = {
   label: string;
   href?: string;
+  /** Acts in place instead of navigating — see "Change billing account". */
+  onSelect?: () => void;
   /** Why it cannot be used, shown as a tooltip. Presence of this disables the item. */
   unavailable?: string;
   danger?: boolean;
@@ -35,6 +47,7 @@ type MenuItem = {
 
 export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
   const [open, setOpen] = useState(false);
+  const [cardDialog, setCardDialog] = useState(false);
   /** Opens upward when the row is near the bottom of the window — see `toggle`. */
   const [dropUp, setDropUp] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -84,17 +97,20 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
   const items: MenuItem[] = [
     { label: "View subscription", href: subscriptionUrl },
     {
-      // The Billing tab, NOT a per-entity billing page — there isn't one to go to. A
-      // payer has ONE billing account (one Stripe customer, one anchor, one dunning
-      // clock) and every company they pay for is a line on its invoice, so the account
-      // this entity bills to is simply the account. No entity id on the link, because
-      // narrowing that screen to one company would be narrowing it to all of them.
-      label: "View billing account",
-      href: "/profile/billing",
-    },
-    {
       label: "View invoices",
       href: `/profile/invoices?entity=${encodeURIComponent(entity.entity_id)}`,
+    },
+    {
+      // OPENS IN PLACE. The two items around it start something longer — a handover to
+      // price and offer, a cancellation to preview — and earn a screen of their own. This
+      // is one choice among a handful of saved cards, and sending someone to a new URL to
+      // make it loses the row they opened the menu from.
+      //
+      // Per COMPANY: it sets which saved card THIS one is billed to and moves nothing
+      // else. The Billing tab is the whole wallet — add, edit, remove, and which card is
+      // the account's main one.
+      label: "Change billing account",
+      onSelect: () => setCardDialog(true),
     },
     {
       // The same screen withdraws a request that is already waiting, so there is no
@@ -150,6 +166,23 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
               >
                 {item.label}
               </a>
+            ) : item.onSelect ? (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  // Closed FIRST: the dialog takes the focus and the scroll lock, and a
+                  // menu left open underneath it reopens on top when the dialog closes.
+                  setOpen(false);
+                  item.onSelect?.();
+                }}
+                className={`block w-full cursor-pointer px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-[#F5F7FA] ${
+                  item.danger ? "text-[#B42318]" : "text-[#292E38]"
+                }`}
+              >
+                {item.label}
+              </button>
             ) : (
               <span
                 key={item.label}
@@ -164,6 +197,13 @@ export function SubscriptionRowMenu({ entity }: { entity: PortalEntity }) {
           )}
         </div>
       ) : null}
+
+      <EntityBillingAccountDialog
+        open={cardDialog}
+        entityId={entity.entity_id}
+        entityName={entity.entity_name}
+        onClose={() => setCardDialog(false)}
+      />
     </div>
   );
 }

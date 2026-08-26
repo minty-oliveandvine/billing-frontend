@@ -74,10 +74,17 @@ function stripeFor(key: string): Promise<Stripe | null> {
 }
 
 const overlayClass =
-  "fixed inset-0 z-[460] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/45 p-3 sm:p-4";
+  "dlg-overlay-in fixed inset-0 z-[460] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/45 p-3 backdrop-blur-[2px] sm:p-4";
 
+/**
+ * The shell onboarding's `.buynow-sheet` and Minty's card-capture dialog both use: 480px,
+ * a 14px radius, a hairline `#ececea` border and a deep soft shadow.
+ *
+ * This dialog is opened FROM two different design systems — the Billing table and the
+ * per-company card picker — and is the same act in both, so it stops being a third look.
+ */
 const shellClass =
-  "relative z-[1] my-auto w-full min-w-0 max-w-[480px] overflow-hidden rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/5 sm:p-6";
+  "dlg-in relative z-[1] my-auto w-full min-w-0 max-w-[480px] overflow-hidden rounded-[14px] border border-[#ececea] bg-white p-6 shadow-[0_20px_48px_rgba(0,0,0,0.22)]";
 
 /**
  * Error text that cannot burst the dialog.
@@ -94,9 +101,27 @@ const errorClass =
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary";
 
-const primaryClass = `inline-flex h-11 min-w-[7rem] cursor-pointer items-center justify-center rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
+/** onboarding's `.btn-primary`, the CTA on every card dialog in the product. */
+const primaryClass = `inline-flex h-11 min-w-[7rem] cursor-pointer items-center justify-center rounded-[10px] bg-gradient-to-r from-[#00CBC6] to-[#00D5BF] px-5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,203,198,0.28)] transition-shadow hover:shadow-[0_8px_22px_rgba(0,203,198,0.4)] disabled:cursor-not-allowed disabled:bg-[#d9d9d6] disabled:bg-none disabled:shadow-none ${focusRing}`;
 
-const ghostClass = `inline-flex h-11 cursor-pointer items-center justify-center rounded-lg border border-[#D8DEE4] bg-white px-4 text-sm font-semibold text-[#4B5563] transition-colors hover:bg-[#F5F7FA] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
+/** onboarding's `.btn-ghost`. */
+const ghostClass = `inline-flex h-11 cursor-pointer items-center justify-center rounded-[10px] border border-[#d9d9d6] bg-white px-5 text-sm font-semibold text-[#4a4d4b] transition-colors hover:bg-[#f5f5f3] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`;
+
+/**
+ * The mandate, word for word as onboarding and Minty print it.
+ *
+ * NOT fine print, and deliberately not shrunk below the text around it: `terms.card: never`
+ * on the Payment Element suppresses Stripe's own authorisation line, which renders inside
+ * the iframe and names the STRIPE ACCOUNT rather than Minty — in test mode it reads "you
+ * allow Cash sandbox to charge your card". Suppressing it moves the disclosure onto this
+ * sentence, so THE TWO MAY NOT BE CHANGED SEPARATELY: delete this and the dialog stores a
+ * payment method having told the payer nothing about what it may be used for.
+ *
+ * `(Details)` is inert here exactly as it is in the other two, and for the same reason —
+ * the Subscription Terms document it names does not exist yet.
+ */
+const mandateClass =
+  "mt-3.5 text-[13px] leading-[1.5] text-[#8a8d8b] [overflow-wrap:anywhere]";
 
 /**
  * The form itself. Split out because `useStripe`/`useElements` only work INSIDE
@@ -104,19 +129,23 @@ const ghostClass = `inline-flex h-11 cursor-pointer items-center justify-center 
  */
 function CardForm({
   setupIntent,
-  forceDefault,
+  firstCard,
   onSaved,
   onCancel,
 }: {
   setupIntent: string;
-  /** The first card on an account is always the default — there is nothing else to charge. */
-  forceDefault: boolean;
+  /**
+   * Whether this is the first card on the account. SAYS SOMETHING, DECIDES NOTHING — the
+   * server promotes a first card on its own (an account whose only method is not the
+   * default has nothing for dunning to point at), and this only lets the dialog tell the
+   * payer that is about to happen.
+   */
+  firstCard: boolean;
   onSaved: (methods: PayerPaymentMethods) => void;
   onCancel: () => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
-  const [makeDefault, setMakeDefault] = useState(forceDefault);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -180,10 +209,10 @@ function CardForm({
       // The card exists at Stripe now; this is what makes it the account's. For a first
       // card it is also what creates the customer, so a failure here is not cosmetic —
       // the method would sit attached to nothing.
-      const methods = await confirmCardSetup(
-        confirmed?.id ?? setupIntent,
-        makeDefault,
-      );
+      // No `make_default`. THIS DIALOG NEVER PROMOTES A CARD — `confirmCardSetup`
+      // defaults it to false, and the server still makes a FIRST card the default by
+      // itself. Promoting any later one is the Billing table's "Make default".
+      const methods = await confirmCardSetup(confirmed?.id ?? setupIntent);
       onSaved(methods);
     } catch (e) {
       setError(
@@ -216,6 +245,11 @@ function CardForm({
         }}
         options={{
           layout: "tabs",
+          // Stripe's own mandate line, suppressed. It renders inside the iframe and names
+          // the STRIPE ACCOUNT rather than Minty — "you allow Cash sandbox to charge your
+          // card" in test mode. The sentence below replaces it and is therefore the
+          // disclosure, not decoration; the two go together or not at all.
+          terms: { card: "never" },
           // Asked for below instead, by the Address Element. Left on "auto" the card
           // fields collect a country and a postcode of their own, and the payer fills the
           // same two boxes twice.
@@ -238,28 +272,29 @@ function CardForm({
         />
       </div>
 
-      <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13.5px] text-[#4B5563]">
-        <input
-          type="checkbox"
-          checked={makeDefault}
-          disabled={forceDefault || busy}
-          onChange={(e) => setMakeDefault(e.target.checked)}
-          className="mt-0.5 h-4 w-4 cursor-pointer accent-[#2E9B9B] disabled:cursor-not-allowed"
-        />
-        <span>
-          Charge my invoices to this payment method
-          {forceDefault ? (
-            <span className="block text-[12.5px] text-[#6B7380]">
-              This is the first payment method on the account, so it will be the one your
-              invoices are charged to.
-            </span>
-          ) : (
-            <span className="block text-[12.5px] text-[#6B7380]">
-              Applies to every company on this billing account.
-            </span>
-          )}
-        </span>
-      </label>
+      {/* WHERE THE "MAKE THIS MY DEFAULT" CHECKBOX USED TO BE, and it is not coming back.
+          Adding a card and promoting one are two decisions, and joining them meant a card
+          added FOR one company could re-point what every other company's picker offered.
+          Promoting is now one control in one place: Billing → the card's menu → "Make
+          default". A payer's FIRST card still becomes the default, decided server-side. */}
+      {firstCard ? (
+        <p className="mt-4 text-[12.5px] text-[#6B7380]">
+          This is the first payment method on your billing account, so it is the one card
+          pickers will offer first.
+        </p>
+      ) : null}
+
+      <p className={mandateClass}>
+        By providing your payment method, you authorise Minty to charge applicable
+        subscription fees in accordance with the Subscription Terms.{" "}
+        <a
+          href="#"
+          onClick={(e) => e.preventDefault()}
+          className="font-semibold text-[#1a9c92] underline underline-offset-2 hover:text-[#36c3b4]"
+        >
+          (Details)
+        </a>
+      </p>
 
       {error ? (
         <p className={`mt-4 ${errorClass}`} role="alert">
@@ -276,7 +311,7 @@ function CardForm({
           className={primaryClass}
           disabled={!stripe || !ready || busy || dead}
         >
-          {busy ? "Saving…" : "Save billing account"}
+          {busy ? "Saving…" : "Save"}
         </button>
       </div>
     </form>
@@ -285,12 +320,13 @@ function CardForm({
 
 export function AddPaymentMethodModal({
   open,
-  forceDefault,
+  firstCard,
   onSaved,
   onClose,
 }: {
   open: boolean;
-  forceDefault: boolean;
+  /** Purely for the line of copy — see `CardForm`. */
+  firstCard: boolean;
   onSaved: (methods: PayerPaymentMethods) => void;
   onClose: () => void;
 }) {
@@ -382,10 +418,10 @@ export function AddPaymentMethodModal({
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
       <div className={shellClass}>
-        <h2 id={titleId} className="text-lg font-bold text-[#21262E]">
-          Add billing account
+        <h2 id={titleId} className="text-lg font-bold text-[#1b1d1c]">
+          New billing account
         </h2>
-        <p className="mt-1.5 text-[13.5px] text-[#6B7380]">
+        <p className="mt-1.5 text-[13.5px] text-[#4a4d4b]">
           Card details are held by our payment provider, Stripe — they are never stored by
           Minty.
         </p>
@@ -404,22 +440,17 @@ export function AddPaymentMethodModal({
         ) : handle ? (
           <Elements
             stripe={stripeFor(handle.publishableKey)}
-            options={{
-              clientSecret: handle.clientSecret,
-              appearance: {
-                variables: {
-                  colorPrimary: "#2E9B9B",
-                  colorText: "#21262E",
-                  colorDanger: "#B42318",
-                  fontSizeBase: "15px",
-                  borderRadius: "8px",
-                },
-              },
-            }}
+            // NO `appearance`. Stripe's stock theme, the same as Minty's capture dialog
+            // and onboarding's sheet — the three used to disagree only here, so the same
+            // card form looked like a different form depending on which app opened it.
+            // Half-theming an iframe is also worse than not theming it: the variables set
+            // one accent and left the rest of Stripe's palette alone, which read as a
+            // form that had been styled and then abandoned.
+            options={{ clientSecret: handle.clientSecret }}
           >
             <CardForm
               setupIntent={handle.setupIntent}
-              forceDefault={forceDefault}
+              firstCard={firstCard}
               onSaved={onSaved}
               onCancel={close}
             />

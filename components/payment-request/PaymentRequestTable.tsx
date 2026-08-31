@@ -1,14 +1,15 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PaymentRequestStatusFilter } from "./PaymentRequestToolbar";
 import { BankSlipDetailsModal, type BankSlipDetails } from "./BankSlipDetailsModal";
 import { RowDeleteConfirmModal } from "./RowDeleteConfirmModal";
 import { useUserRole } from "@/lib/useUserRole";
 import { useEntityCurrency } from "@/lib/entityCurrency";
 import { recordPaymentButtonClass } from "./paymentRequestButtonClasses";
-import { compareRows, type SortKey } from "@/lib/paymentRequestRowSort";
+import { HEADER_CHECKBOX_CLASS } from "./paymentRequestCheckboxClasses";
+import { type SortKey } from "@/lib/paymentRequestRowSort";
 
 const COLUMN_TITLES = [
   "Supplier / Description",
@@ -226,8 +227,6 @@ const DEMO_ROWS: PaymentRequestRow[] = [
   },
 ];
 
-const HEADER_CHECKBOX_CLASS = "checkbox-secondary-white-tick h-4 w-4 rounded border border-primary/40";
-
 const dataCellBase = "border-b border-gray-100 px-4 py-3 text-sm text-primary sm:px-5 sm:py-3.5";
 const contactCellClass = `${dataCellBase} align-middle`;
 const invoiceDateCellClass = `${dataCellBase} align-middle`;
@@ -286,25 +285,31 @@ function unpaidAmountTextClass(status: string): string {
 }
 
 type PaymentRequestTableProps = {
+  /** The current page slice — already filtered and sorted by `PaymentRequestView`. */
   rows?: PaymentRequestRow[];
   onRecordPayment?: (rowId: string, readOnly?: boolean) => void;
-  /** Empty array = no status filter ("All"). Multiple entries = OR-filter (rows match any). */
+  /** Empty array = no status filter ("All"). Only used to reset transient menus. */
   statusFilters?: PaymentRequestStatusFilter[];
   onRowDelete?: (rowId: string) => void;
   onRowPublish?: (rowId: string) => void;
   onRowRepublish?: (rowId: string) => void;
   onRowClick?: (rowId: string) => void;
   loading?: boolean;
-  onSelectionChange?: (selectedIds: string[]) => void;
+  /** Sort is owned by the parent so the page slice is taken after sorting. */
+  sort?: { key: SortKey | null; dir: "asc" | "desc" };
+  onSortColumn?: (key: SortKey) => void;
+  /** Selection is shared with the easy view and spans pages. */
+  selectedIds?: ReadonlySet<string>;
+  onToggleRow?: (rowId: string) => void;
+  onToggleAll?: (rowIds: string[], next: boolean) => void;
+  /** Rendered top-right above the table (the totals banner). */
+  headerSlot?: ReactNode;
   /** After bank slip files are uploaded via API for a bill. */
   onBankSlipUploaded?: () => void;
 };
 
-export type PaymentRequestTableHandle = {
-  clearSelection: () => void;
-  /** Opens the bank slip attachments modal for the given bill (same as row Upload / attachment count). */
-  openBankSlipUpload: (billId: string) => void;
-};
+/** Stable empty default so an uncontrolled table doesn't get a new Set every render. */
+const EMPTY_SELECTION: ReadonlySet<string> = new Set<string>();
 
 const ROW_MENU_MIN_WIDTH_PX = 160;
 const COLUMNS_MENU_WIDTH_PX = 288;
@@ -476,83 +481,45 @@ function RowLinkOverlay({ rowId, label }: { rowId: string; label: string }) {
   );
 }
 
-export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, PaymentRequestTableProps>(function PaymentRequestTable(
-  {
-    rows = DEMO_ROWS,
-    onRecordPayment,
-    statusFilters = [],
-    onRowDelete,
-    onRowPublish,
-    onRowRepublish,
-    onRowClick,
-    loading = false,
-    onSelectionChange,
-    onBankSlipUploaded,
-  },
-  ref,
-) {
+export function PaymentRequestTable({
+  rows = DEMO_ROWS,
+  onRecordPayment,
+  statusFilters = [],
+  onRowDelete,
+  onRowPublish,
+  onRowRepublish,
+  onRowClick,
+  loading = false,
+  sort = { key: "status", dir: "asc" },
+  onSortColumn,
+  selectedIds = EMPTY_SELECTION,
+  onToggleRow,
+  onToggleAll,
+  headerSlot,
+  onBankSlipUploaded,
+}: PaymentRequestTableProps) {
   const sortDescriptionIdPrefix = useId();
   const { isElevated, isViewOnly } = useUserRole();
   const entityCurrency = useEntityCurrency();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bankSlipDetailsRowId, setBankSlipDetailsRowId] = useState<string | null>(null);
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null);
   const [rowDeleteConfirmId, setRowDeleteConfirmId] = useState<string | null>(null);
   const [rowDeletePending, setRowDeletePending] = useState(false);
   const [columnsMenu, setColumnsMenu] = useState<ColumnsMenuState | null>(null);
-  const [sort, setSort] = useState<{ key: SortKey | null; dir: "asc" | "desc" }>({ key: "status", dir: "asc" });
   const [columnVisibility, setColumnVisibility] = useState<Record<ColumnSelectorKey, boolean>>(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
   const [columnVisibilityDraft, setColumnVisibilityDraft] = useState<Record<ColumnSelectorKey, boolean>>(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
-  const rowIdSet = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
-
-  useImperativeHandle(ref, () => ({
-    clearSelection: () => setSelectedIds(new Set()),
-    openBankSlipUpload: (billId: string) => setBankSlipDetailsRowId(billId),
-  }));
-
-  useEffect(() => {
-    onSelectionChange?.([...selectedIds]);
-  }, [selectedIds, onSelectionChange]);
 
   useEffect(() => {
     setColumnVisibility(loadStoredColumnVisibility());
   }, []);
 
-  useEffect(() => {
-    setSelectedIds((prev) => {
-      const next = new Set(
-        [...prev].filter((id) => {
-          if (!rowIdSet.has(id)) return false;
-          const r = rows.find((x) => x.id === id);
-          return r != null && r.status !== "Voided";
-        }),
-      );
-      if (next.size === prev.size && [...prev].every((id) => next.has(id))) return prev;
-      return next;
-    });
-  }, [rowIdSet, rows]);
-
   const statusFilterKey = statusFilters.join("|");
-  const visibleRows = useMemo(
-    () =>
-      statusFilters.length === 0
-        ? rows
-        : rows.filter((r) => statusFilters.some((s) => s === r.status)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, statusFilterKey],
-  );
 
-  const sortedVisibleRows = useMemo(() => {
-    if (!sort.key) return visibleRows;
-    const next = [...visibleRows];
-    next.sort((a, b) => compareRows(a, b, sort.key!, sort.dir));
-    return next;
-  }, [visibleRows, sort.key, sort.dir]);
-
+  /** "Select all" means everything selectable on this page — selection spans pages. */
   const selectableVisibleRows = useMemo(
-    () => visibleRows.filter((r) => r.status !== "Voided"),
-    [visibleRows],
+    () => rows.filter((r) => r.status !== "Voided"),
+    [rows],
   );
 
   const allSelected =
@@ -580,19 +547,13 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
     bankSlipDetailsSourceRow != null &&
     (bankSlipDetailsSourceRow.status === "Voided" || bankSlipDetailsSourceRow.status === "Draft");
 
+  /** Selection and sort resets live in the parent; only transient menus close here. */
   useEffect(() => {
-    setSelectedIds(new Set());
-    setSort({ key: "status", dir: "asc" });
     setRowMenu(null);
     setRowDeleteConfirmId(null);
     setColumnsMenu(null);
     setBankSlipDetailsRowId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilterKey]);
-
-  const onSortColumn = (sk: SortKey) => {
-    setSort((s) => (s.key === sk ? { key: sk, dir: s.dir === "asc" ? "desc" : "asc" } : { key: sk, dir: "asc" }));
-  };
 
   useEffect(() => {
     const el = headerCheckboxRef.current;
@@ -600,19 +561,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
   }, [someSelected]);
 
   const toggleAll = () => {
-    if (allSelected) setSelectedIds(new Set());
-    else setSelectedIds(new Set(selectableVisibleRows.map((r) => r.id)));
-  };
-
-  const toggleRow = (id: string) => {
-    const r = rows.find((x) => x.id === id);
-    if (r?.status === "Voided") return;
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    onToggleAll?.(selectableVisibleRows.map((r) => r.id), !allSelected);
   };
 
   const rowMenuRow = rowMenu ? rows.find((r) => r.id === rowMenu.rowId) : undefined;
@@ -727,6 +676,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
 
   return (
     <div className="w-full min-w-0 px-4 pb-6 sm:px-6">
+      {headerSlot ? <div className="mb-3 flex justify-end">{headerSlot}</div> : null}
       <div className="flex flex-col gap-3 lg:hidden" role="list" aria-label="Payment requests">
         {loading ? (
           <div className="flex flex-col gap-3" role="status" aria-busy="true" aria-label="Loading payment requests">
@@ -765,10 +715,10 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
               </div>
             ))}
           </div>
-        ) : visibleRows.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="rounded-xl border border-gray-200 bg-[#F5F5F5] px-4 py-8 text-center text-sm text-primary/70">No payment requests match this status.</div>
         ) : (
-          sortedVisibleRows.map((row) => {
+          rows.map((row) => {
             const isPaid = row.status === "Paid";
             const isPartiallyPaid = row.status === "Partially Paid";
             const isVoided = row.status === "Voided";
@@ -793,7 +743,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                 <RowLinkOverlay rowId={row.id} label={`Open ${row.contactTitle}`} />
                 <div className="flex gap-3">
                   <div className="relative z-[1] hidden shrink-0 pt-0.5 sm:block" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={selectedIds.has(row.id)} disabled={isVoided} onChange={() => toggleRow(row.id)} className={`${HEADER_CHECKBOX_CLASS} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={isVoided ? `Voided — cannot select ${row.contactTitle}` : `Select row ${row.contactTitle}`} suppressHydrationWarning />
+                    <input type="checkbox" checked={selectedIds.has(row.id)} disabled={isVoided} onChange={() => onToggleRow?.(row.id)} className={`${HEADER_CHECKBOX_CLASS} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={isVoided ? `Voided — cannot select ${row.contactTitle}` : `Select row ${row.contactTitle}`} suppressHydrationWarning />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2">
@@ -922,7 +872,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                             aria-label={`Sort by ${title}${sortActive ? `, ${sort.dir === "asc" ? "ascending" : "descending"}` : ""}`}
                             aria-describedby={`${sortDescriptionIdPrefix}-${sortKeyForCol}`}
                             title={sortColumnTooltip(sortKeyForCol)}
-                            onClick={() => onSortColumn(sortKeyForCol)}
+                            onClick={() => onSortColumn?.(sortKeyForCol)}
                           >
                             <span className="inline-flex size-5 items-center justify-center" aria-hidden>
                               <span className={`material-symbols-outlined block text-[18px] leading-none ${sortActive ? "opacity-100" : "opacity-60"}`}>{sortActive ? (sort.dir === "asc" ? "expand_less" : "expand_more") : "expand_more"}</span>
@@ -969,13 +919,13 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                     </td>
                   </tr>
                 ))
-              ) : visibleRows.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={tableColCount} className="border-b border-gray-100 px-4 py-8 text-center text-sm text-primary/70 sm:px-5">No payment requests match this status.</td>
                 </tr>
               ) : null}
               {!loading &&
-                sortedVisibleRows.map((row) => {
+                rows.map((row) => {
                 const isPaid = row.status === "Paid";
                 const isPartiallyPaid = row.status === "Partially Paid";
                 const isVoided = row.status === "Voided";
@@ -987,7 +937,7 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
                 return (
                   <tr key={row.id} className={`transition-colors duration-150 ease-out cursor-pointer hover:bg-gray-50`} onClick={() => { onRowClick?.(row.id); }}>
                     <td className="border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3">
-                      <input type="checkbox" checked={selectedIds.has(row.id)} disabled={isVoided} onChange={() => toggleRow(row.id)} onClick={(e) => e.stopPropagation()} className={`${HEADER_CHECKBOX_CLASS} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={isVoided ? `Voided — cannot select ${row.contactTitle}` : `Select row ${row.contactTitle}`} suppressHydrationWarning />
+                      <input type="checkbox" checked={selectedIds.has(row.id)} disabled={isVoided} onChange={() => onToggleRow?.(row.id)} onClick={(e) => e.stopPropagation()} className={`${HEADER_CHECKBOX_CLASS} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={isVoided ? `Voided — cannot select ${row.contactTitle}` : `Select row ${row.contactTitle}`} suppressHydrationWarning />
                     </td>
                     {orderedTableTitles.map((title) => {
                       const selectorKey = TITLE_SELECTOR_KEY[title];
@@ -1281,6 +1231,6 @@ export const PaymentRequestTable = forwardRef<PaymentRequestTableHandle, Payment
       />
     </div>
   );
-});
+}
 
 export { COLUMN_TITLES };

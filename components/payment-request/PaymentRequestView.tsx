@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { BankSlipDetailsModal } from "./BankSlipDetailsModal";
-import { PaymentRequestEasyView } from "./PaymentRequestEasyView";
+import { PaymentRequestEasyView, type EasyViewSortKey } from "./PaymentRequestEasyView";
 import {
   getBankSlipDetailsForRow,
   PaymentRequestTable,
   type PaymentRequestRow,
-  type PaymentRequestTableHandle,
 } from "./PaymentRequestTable";
 import { PaymentRequestToolbar, type PaymentRequestStatusFilter } from "./PaymentRequestToolbar";
+import { PaymentRequestPagination, PAGE_SIZE_OPTIONS } from "./PaymentRequestPagination";
+import { PaymentRequestTotalsBanner } from "./PaymentRequestTotalsBanner";
 import { BulkDeleteConfirmModal } from "./BulkDeleteConfirmModal";
 import { RecordPaymentModal } from "./RecordPaymentModal";
 import { RowDeleteConfirmModal } from "./RowDeleteConfirmModal";
@@ -29,11 +30,20 @@ import {
 import type { InvoiceAttachmentPreviewItem } from "./InvoiceAttachmentPreview";
 import { useEntityCurrency } from "@/lib/entityCurrency";
 import { formatAmount, formatMoney, parseAmount } from "@/lib/amountFormat";
-import { fetchBillBankSlipEnrichment } from "@/lib/bankSlipEnrichment";
+import { fetchBillBankSlipEnrichment, type BankSlipEnrichment } from "@/lib/bankSlipEnrichment";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
 import { getAuth } from "@/lib/auth";
+import { compareRows, type SortKey } from "@/lib/paymentRequestRowSort";
+import { rowMatchesSearch } from "@/lib/paymentRequestSearch";
 import { useUserRole } from "@/lib/useUserRole";
 import { useToast } from "@/components/Toast";
+
+/** Rows requested per `fetchBills` call while walking the whole list. */
+const FETCH_PAGE_SIZE = 100;
+/** Hard stop for the fetch-all loop so a huge entity can't hang the page. */
+const MAX_FETCHED_ROWS = 2000;
+/** Bank-slip enrichment requests issued in parallel. */
+const ENRICH_BATCH = 5;
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -94,6 +104,8 @@ const DATE_TYPE_TO_FIELD: Record<string, string> = {
   "Submitted Date": "created_at",
 };
 
+type EnrichmentEntry = { epoch: number; value: BankSlipEnrichment };
+
 /** Same mapping as `PaymentRequestDetailBody.mapServerAttachmentsToPreviewItems`. */
 function mapBillAttachmentsToPreviewItems(
   billId: string,
@@ -150,6 +162,9 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
    *  failures (delete/publish) surface as toasts instead. */
   const [loadError, setLoadError] = useState<string | null>(null);
   const { showToast } = useToast();
+  const [datasetTruncated, setDatasetTruncated] = useState(false);
+  /** False while the fetch-all loop is still committing pages. */
+  const [datasetComplete, setDatasetComplete] = useState(false);
   const [recordPaymentTarget, setRecordPaymentTarget] = useState<{ billId: string; readOnly: boolean } | null>(null);
   const [easyViewPayBillId, setEasyViewPayBillId] = useState<string | null>(null);
   const [easyViewPayReadOnly, setEasyViewPayReadOnly] = useState(false);
@@ -159,31 +174,119 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
   const [easyViewSelectedBillId, setEasyViewSelectedBillId] = useState<string | null>(null);
   const [easyViewInvoiceAttachments, setEasyViewInvoiceAttachments] = useState<InvoiceAttachmentPreviewItem[]>([]);
   const [easyViewInvoiceLoading, setEasyViewInvoiceLoading] = useState(false);
-  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
   const [bulkDeletePending, setBulkDeletePending] = useState(false);
-  const tableRef = useRef<PaymentRequestTableHandle>(null);
   const [easyViewBankSlipRowId, setEasyViewBankSlipRowId] = useState<string | null>(null);
-  const bulkActionsEnabled = selectedBillIds.length >= 2;
   const [easyViewPayBill, setEasyViewPayBill] = useState<BillDetail | null>(null);
+  // Each view keeps its own sort (the table exposes 6 keys, easy view 4), but both
+  // live here because the page slice has to be taken *after* sorting.
+  const [tableSort, setTableSort] = useState<{ key: SortKey | null; dir: "asc" | "desc" }>({ key: "status", dir: "asc" });
+  const [easySort, setEasySort] = useState<{ key: EasyViewSortKey; dir: "asc" | "desc" }>({ key: "status", dir: "asc" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
+  // Bank-slip counts, keyed by bill id and stamped with the load that produced them.
+  const [enrichmentById, setEnrichmentById] = useState<Map<string, EnrichmentEntry>>(() => new Map());
+  const [enrichEpoch, setEnrichEpoch] = useState(0);
 
-  /** Xero publish-state filter (client-side; `xeroActive` is derived in `mapBillToRow`). */
-  const visibleBills = useMemo(() => {
+  const statusFilterKey = statusFilters.join("|");
+
+  /** Bank-slip counts merged onto the rows, so every consumer sees enriched data. */
+  const enrichedBills = useMemo(
+    () =>
+      bills.map((r) => {
+        const e = enrichmentById.get(r.id)?.value;
+        if (!e) return r;
+        return {
+          ...r,
+          bankslipFileCount: e.bankslipFileCount,
+          ...(e.bankSlipDetails ? { bankSlipDetails: e.bankSlipDetails } : {}),
+        };
+      }),
+    [bills, enrichmentById],
+  );
+
+  /**
+   * Everything the user should currently see, before paging: the Voided rule,
+   * the Xero publish-state filter, the status pills and the search query.
+   */
+  const filteredBills = useMemo(() => {
     // Voided bills are hidden from every view unless the user explicitly selects the
     // "Voided" status filter. A shop manager can accidentally void a bill when adding
     // it, and surfacing those mistakes in the default list is confusing/irritating —
     // they stay reachable only through the dedicated Voided filter.
     const showVoided = statusFilters.includes("Voided");
-    let result = showVoided ? bills : bills.filter((r) => r.status !== "Voided");
+    let result = showVoided ? enrichedBills : enrichedBills.filter((r) => r.status !== "Voided");
     if (xeroStatus === "published") result = result.filter((r) => r.xeroActive === true);
     else if (xeroStatus === "not_published") result = result.filter((r) => r.xeroActive !== true);
+    if (statusFilters.length > 0) result = result.filter((r) => statusFilters.some((s) => s === r.status));
+    if (debouncedSearch) result = result.filter((r) => rowMatchesSearch(r, debouncedSearch));
     return result;
-  }, [bills, xeroStatus, statusFilters]);
+  }, [enrichedBills, xeroStatus, statusFilters, debouncedSearch]);
+
+  const totalItems = filteredBills.length;
+  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
+  // Slice with `safePage` so a shrinking result set never flashes an empty page.
+  const safePage = Math.min(page, pageCount);
+
+  const sortedForTable = useMemo(() => {
+    if (!tableSort.key) return filteredBills;
+    return [...filteredBills].sort((a, b) => compareRows(a, b, tableSort.key!, tableSort.dir));
+  }, [filteredBills, tableSort]);
+
+  const sortedForEasy = useMemo(
+    () => [...filteredBills].sort((a, b) => compareRows(a, b, easySort.key, easySort.dir)),
+    [filteredBills, easySort],
+  );
+
+  const tablePageRows = useMemo(
+    () => sortedForTable.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [sortedForTable, safePage, pageSize],
+  );
+
+  const easyPageRows = useMemo(
+    () => sortedForEasy.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [sortedForEasy, safePage, pageSize],
+  );
+
+  /** Only rows that survive the current filters count toward bulk actions and the banner. */
+  const activeSelectedRows = useMemo(
+    () => filteredBills.filter((r) => selectedIds.has(r.id)),
+    [filteredBills, selectedIds],
+  );
+  const activeSelectedIds = useMemo(() => activeSelectedRows.map((r) => r.id), [activeSelectedRows]);
+  const bulkActionsEnabled = activeSelectedIds.length >= 2;
+
+  const onToggleRow = useCallback(
+    (id: string) => {
+      const row = bills.find((r) => r.id === id);
+      if (row?.status === "Voided") return;
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [bills],
+  );
+
+  /** `ids` = the selectable rows on the caller's current page. */
+  const onToggleAll = useCallback((ids: string[], next: boolean) => {
+    setSelectedIds((prev) => {
+      const updated = new Set(prev);
+      for (const id of ids) {
+        if (next) updated.add(id);
+        else updated.delete(id);
+      }
+      return updated;
+    });
+  }, []);
 
   const easyViewBankSlipSourceRow = useMemo(() => {
     if (!easyViewBankSlipRowId) return undefined;
-    return bills.find((x) => x.id === easyViewBankSlipRowId);
-  }, [easyViewBankSlipRowId, bills]);
+    return enrichedBills.find((x) => x.id === easyViewBankSlipRowId);
+  }, [easyViewBankSlipRowId, enrichedBills]);
 
   const easyViewBankSlipPayload = useMemo(() => {
     if (!easyViewBankSlipSourceRow) return null;
@@ -194,17 +297,10 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     easyViewBankSlipSourceRow != null &&
     (easyViewBankSlipSourceRow.status === "Voided" || easyViewBankSlipSourceRow.status === "Draft");
 
-  const selectionContainsPaid = useMemo(() => {
-    const selectedSet = new Set(selectedBillIds);
-    return bills.some(
-      (row) =>
-        selectedSet.has(row.id) && (row.status === "Paid" || row.status === "Partially Paid"),
-    );
-  }, [selectedBillIds, bills]);
-
-  const onTableSelectionChange = useCallback((ids: string[]) => {
-    setSelectedBillIds(ids);
-  }, []);
+  const selectionContainsPaid = useMemo(
+    () => activeSelectedRows.some((row) => row.status === "Paid" || row.status === "Partially Paid"),
+    [activeSelectedRows],
+  );
 
   useEffect(() => {
     const trimmed = searchQuery.trim();
@@ -218,9 +314,8 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
 
   /**
    * Monotonic token so only the most recent loadBills may commit state. An
-   * older, slower call (its enrichment loop awaits per-bill network requests)
-   * must not overwrite a fresher list — that race made voided rows flicker
-   * out of the Voided filter when calls overlapped.
+   * older, slower call must not overwrite a fresher list — that race made voided
+   * rows flicker out of the Voided filter when calls overlapped.
    */
   const loadSeqRef = useRef(0);
 
@@ -228,55 +323,68 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     const seq = ++loadSeqRef.current;
     setLoading(true);
     setLoadError(null);
+    setDatasetComplete(false);
+    // Invalidate cached bank-slip counts without clearing them, so the Bank Slip
+    // column keeps showing stale-but-correct values while the list reloads.
+    setEnrichEpoch((e) => e + 1);
     try {
       // Only push status to the server when exactly one is selected. For 0 or 2+
       // we omit the param and let the client-side filter narrow the rows.
       const apiStatus =
         statusFilters.length === 1 ? STATUS_LABEL_TO_API[statusFilters[0]!] : undefined;
       const dateField = DATE_TYPE_TO_FIELD[dateType];
-      const data = await fetchBills({
-        page_size: 100,
-        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      // Search is applied client-side (it also matches invoice totals, which the
+      // server's `search` does not), so it is deliberately not sent here.
+      const baseParams = {
         ...(apiStatus ? { status: apiStatus } : {}),
         ...(parseAmount(minAmount) !== null ? { amount_min: parseAmount(minAmount)! } : {}),
         ...(parseAmount(maxAmount) !== null ? { amount_max: parseAmount(maxAmount)! } : {}),
         ...(dateField ? { date_field: dateField } : {}),
         ...(startDate ? { date_from: startDate } : {}),
         ...(endDate ? { date_to: endDate } : {}),
-      });
-      // A newer loadBills started while we were fetching — discard this stale
-      // response so it can't overwrite the fresher list.
-      if (seq !== loadSeqRef.current) return;
-      setRawBills(data);
-      const mapped = data.map((b) => mapBillToRow(b, entityCurrency));
-      setBills(mapped);
-      const BATCH = 5;
-      const enriched: PaymentRequestRow[] = [];
-      for (let i = 0; i < mapped.length; i += BATCH) {
-        const batch = mapped.slice(i, i + BATCH);
-        const chunk = await Promise.all(
-          batch.map(async (r) => {
-            const { bankslipFileCount, bankSlipDetails } = await fetchBillBankSlipEnrichment(r.id, {
-              contactTitle: r.contactTitle,
-              submittedDate: r.submittedDate,
-              invoiceDate: r.invoiceDate,
-              paidDate: r.paidDate,
-              unpaidAmount: r.unpaidAmount,
-              currencyCode: r.currencyCode,
-            });
-            return {
-              ...r,
-              bankslipFileCount,
-              ...(bankSlipDetails ? { bankSlipDetails } : {}),
-            };
-          }),
-        );
-        enriched.push(...chunk);
+      };
+
+      const all: BillListItem[] = [];
+      const seenIds = new Set<string>();
+      let truncated = false;
+
+      // The list endpoint returns a bare array with no count envelope, so the whole
+      // set is walked here and paged/sorted/searched in the browser.
+      for (let pageNum = 1; ; pageNum += 1) {
+        const chunk = await fetchBills({ ...baseParams, page: pageNum, page_size: FETCH_PAGE_SIZE });
+        // A newer loadBills started while we were fetching — discard this stale
+        // response so it can't overwrite the fresher list.
+        if (seq !== loadSeqRef.current) return;
+        if (chunk.length === 0) break;
+
+        let added = 0;
+        for (const b of chunk) {
+          if (seenIds.has(b.id)) continue;
+          seenIds.add(b.id);
+          all.push(b);
+          added += 1;
+        }
+
+        // Commit progressively so the first page paints without waiting on the rest.
+        setRawBills([...all]);
+        setBills(all.map((b) => mapBillToRow(b, entityCurrency)));
+        if (pageNum === 1) setLoading(false);
+
+        // A backend that ignores `page` returns the same rows forever — stop rather
+        // than looping to the cap.
+        if (added === 0) break;
+        if (chunk.length < FETCH_PAGE_SIZE) break;
+        if (all.length >= MAX_FETCHED_ROWS) {
+          truncated = true;
+          break;
+        }
       }
-      // The enrichment loop above awaits network calls, so a newer load may
-      // have superseded us in the meantime — don't clobber it.
+
       if (seq !== loadSeqRef.current) return;
-      setBills(enriched);
+      setRawBills(all);
+      setBills(all.map((b) => mapBillToRow(b, entityCurrency)));
+      setDatasetTruncated(truncated);
+      setDatasetComplete(true);
     } catch (err) {
       if (seq === loadSeqRef.current) {
         setLoadError(err instanceof Error ? err.message : "Hmm, your payments didn't come through. Let's give it another go?");
@@ -284,7 +392,75 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [debouncedSearch, statusFilters, minAmount, maxAmount, dateType, startDate, endDate, entityCurrency]);
+  }, [statusFilters, minAmount, maxAmount, dateType, startDate, endDate, entityCurrency]);
+
+  /** Rows on screen in either view — the only ones worth enriching. */
+  const enrichTargets = useMemo(() => {
+    const byId = new Map<string, PaymentRequestRow>();
+    for (const r of [...tablePageRows, ...easyPageRows]) {
+      if (!byId.has(r.id)) byId.set(r.id, r);
+    }
+    return [...byId.values()];
+  }, [tablePageRows, easyPageRows]);
+
+  const enrichTargetsKey = useMemo(
+    () => enrichTargets.map((r) => r.id).sort().join(","),
+    [enrichTargets],
+  );
+
+  const enrichTargetsRef = useRef<PaymentRequestRow[]>([]);
+  const enrichmentRef = useRef(enrichmentById);
+  useEffect(() => {
+    enrichTargetsRef.current = enrichTargets;
+  }, [enrichTargets]);
+  useEffect(() => {
+    enrichmentRef.current = enrichmentById;
+  }, [enrichmentById]);
+
+  const enrichSeqRef = useRef(0);
+
+  /**
+   * Bank-slip counts cost one request per bill, so only the visible page is
+   * enriched. Results are cached by bill id, making a revisit free; `enrichEpoch`
+   * is what forces a refetch after a mutation.
+   */
+  useEffect(() => {
+    const pending = enrichTargetsRef.current.filter(
+      (r) => (enrichmentRef.current.get(r.id)?.epoch ?? -1) < enrichEpoch,
+    );
+    if (pending.length === 0) return;
+    const seq = ++enrichSeqRef.current;
+    let cancelled = false;
+
+    (async () => {
+      for (let i = 0; i < pending.length; i += ENRICH_BATCH) {
+        const batch = pending.slice(i, i + ENRICH_BATCH);
+        const chunk = await Promise.all(
+          batch.map(async (r) => ({
+            id: r.id,
+            value: await fetchBillBankSlipEnrichment(r.id, {
+              contactTitle: r.contactTitle,
+              submittedDate: r.submittedDate,
+              invoiceDate: r.invoiceDate,
+              paidDate: r.paidDate,
+              unpaidAmount: r.unpaidAmount,
+              currencyCode: r.currencyCode,
+            }),
+          })),
+        );
+        if (cancelled || seq !== enrichSeqRef.current) return;
+        setEnrichmentById((prev) => {
+          const next = new Map(prev);
+          for (const { id, value } of chunk) next.set(id, { epoch: enrichEpoch, value });
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enrichTargetsKey, enrichEpoch]);
 
   /**
    * Optimistically drop bills from local state so a void/delete disappears
@@ -326,27 +502,23 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
 
   useEffect(() => {
     if (!easyViewPayBillId) return;
-    const filtered =
-      statusFilters.length === 0 ? bills : bills.filter((r) => statusFilters.some((s) => s === r.status));
-    if (!filtered.some((r) => r.id === easyViewPayBillId)) {
+    if (!filteredBills.some((r) => r.id === easyViewPayBillId)) {
       setEasyViewPayBillId(null);
       setEasyViewPayReadOnly(false);
     }
-  }, [statusFilters, bills, easyViewPayBillId]);
+  }, [filteredBills, easyViewPayBillId]);
 
   useEffect(() => {
     if (!easyViewDraftBillId) return;
-    const filtered =
-      statusFilters.length === 0 ? bills : bills.filter((r) => statusFilters.some((s) => s === r.status));
-    if (!filtered.some((r) => r.id === easyViewDraftBillId)) {
+    if (!filteredBills.some((r) => r.id === easyViewDraftBillId)) {
       setEasyViewDraftBillId(null);
     }
-  }, [statusFilters, bills, easyViewDraftBillId]);
+  }, [filteredBills, easyViewDraftBillId]);
 
   useEffect(() => {
     if (!easyViewDraftBillId) setEasyViewDraftDeleteOpen(false);
   }, [easyViewDraftBillId]);
- 
+
   useEffect(() => {
     if (!easyViewPayBillId) {
       setEasyViewPayBill(null);
@@ -361,7 +533,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       console.error("Failed to fetch bill for easy view modal:", e);
     }
   };
-  
+
   fetchBillDetail();
 }, [easyViewPayBillId]);
 
@@ -400,36 +572,86 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
 
   useEffect(() => {
     if (!easyViewSelectedBillId) return;
-    const filtered =
-      statusFilters.length === 0 ? bills : bills.filter((r) => statusFilters.some((s) => s === r.status));
-    if (!filtered.some((r) => r.id === easyViewSelectedBillId)) {
+    if (!filteredBills.some((r) => r.id === easyViewSelectedBillId)) {
       setEasyViewSelectedBillId(null);
     }
-  }, [statusFilters, bills, easyViewSelectedBillId]);
+  }, [filteredBills, easyViewSelectedBillId]);
 
   useEffect(() => {
     loadBills();
   }, [loadBills]);
 
+  /**
+   * Drop ids that vanished from the dataset or turned Voided. Keyed on the whole
+   * list, never the page slice — selection has to survive paging — and skipped
+   * until the fetch-all loop finishes, or a partial list would prune selections
+   * whose rows simply have not been re-fetched yet.
+   */
   useEffect(() => {
-    if (bulkDeleteModalOpen && selectedBillIds.length < 2 && !bulkDeletePending) {
+    if (!datasetComplete) return;
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set(
+        [...prev].filter((id) => {
+          const r = bills.find((x) => x.id === id);
+          return r != null && r.status !== "Voided";
+        }),
+      );
+      if (next.size === prev.size) return prev;
+      return next;
+    });
+  }, [bills, datasetComplete]);
+
+  /** Changing the status filter resets selection, both sorts and the page. */
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setTableSort({ key: "status", dir: "asc" });
+    setEasySort({ key: "status", dir: "asc" });
+  }, [statusFilterKey]);
+
+  /** Any change to what the list contains sends the user back to page 1. */
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilterKey, debouncedSearch, minAmount, maxAmount, dateType, startDate, endDate, xeroStatus]);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
+
+  const onTableSortColumn = useCallback((key: SortKey) => {
+    setTableSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+    setPage(1);
+  }, []);
+
+  const onEasySortChange = useCallback((key: EasyViewSortKey) => {
+    setEasySort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+    setPage(1);
+  }, []);
+
+  const onPageSizeChange = useCallback((next: number) => {
+    setPageSize(next);
+    setPage(1);
+  }, []);
+
+  useEffect(() => {
+    if (bulkDeleteModalOpen && activeSelectedIds.length < 2 && !bulkDeletePending) {
       setBulkDeleteModalOpen(false);
     }
-  }, [bulkDeleteModalOpen, bulkDeletePending, selectedBillIds.length]);
+  }, [bulkDeleteModalOpen, bulkDeletePending, activeSelectedIds.length]);
 
   const openBulkDeleteModal = useCallback(() => {
-    if (selectedBillIds.length < 2) return;
+    if (activeSelectedIds.length < 2) return;
     setBulkDeleteModalOpen(true);
-  }, [selectedBillIds.length]);
+  }, [activeSelectedIds.length]);
 
   const executeBulkDelete = useCallback(async () => {
-    if (selectedBillIds.length < 2) return;
+    if (activeSelectedIds.length < 2) return;
     setBulkDeletePending(true);
     try {
-      await Promise.all(selectedBillIds.map((id) => deleteBill(id)));
-      removeBillsLocally(selectedBillIds);
+      await Promise.all(activeSelectedIds.map((id) => deleteBill(id)));
+      removeBillsLocally(activeSelectedIds);
       await loadBills();
-      tableRef.current?.clearSelection();
+      setSelectedIds(new Set());
       setBulkDeleteModalOpen(false);
     } catch (err) {
       showToast(
@@ -439,21 +661,42 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     } finally {
       setBulkDeletePending(false);
     }
-  }, [selectedBillIds, loadBills, removeBillsLocally, showToast]);
+  }, [activeSelectedIds, loadBills, removeBillsLocally, showToast]);
 
   const runBulkPublishSelected = useCallback(async () => {
-    if (selectedBillIds.length < 2) return;
+    if (activeSelectedIds.length < 2) return;
     try {
-      await Promise.all(selectedBillIds.map((id) => publishBill(id)));
+      await Promise.all(activeSelectedIds.map((id) => publishBill(id)));
       await loadBills();
-      tableRef.current?.clearSelection();
+      setSelectedIds(new Set());
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : "Those payments didn't quite make it over. Let's try again?",
         "error",
       );
     }
-  }, [selectedBillIds, loadBills, showToast]);
+  }, [activeSelectedIds, loadBills, showToast]);
+
+  // Built once and handed to both branches so the two copies can never disagree.
+  const totalsBanner = (
+    <PaymentRequestTotalsBanner
+      allRows={filteredBills}
+      selectedRows={activeSelectedRows}
+      startDate={startDate}
+      endDate={endDate}
+    />
+  );
+
+  const pagination = (
+    <PaymentRequestPagination
+      page={safePage}
+      pageSize={pageSize}
+      totalItems={totalItems}
+      onPageChange={setPage}
+      onPageSizeChange={onPageSizeChange}
+      truncated={datasetTruncated}
+    />
+  );
 
   return (
     <>
@@ -464,7 +707,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         bulkActionsEnabled={bulkActionsEnabled}
-        bulkSelectedCount={selectedBillIds.length}
+        bulkSelectedCount={activeSelectedIds.length}
         onBulkDeleteSelected={openBulkDeleteModal}
         onBulkPublishSelected={runBulkPublishSelected}
         appliedMinAmount={minAmount}
@@ -512,9 +755,16 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
           <>
             <div className={easyView ? "hidden min-h-0 flex-1 flex-col lg:flex" : "hidden"}>
               <PaymentRequestEasyView
-                rows={visibleBills}
+                rows={easyPageRows}
                 loading={loading}
                 activeStatuses={statusFilters}
+                sort={easySort}
+                onSortChange={onEasySortChange}
+                selectedIds={selectedIds}
+                onToggleRow={onToggleRow}
+                onToggleAll={onToggleAll}
+                totalsBanner={totalsBanner}
+                pagination={pagination}
                 payPanelBillId={easyViewPayBillId}
                 payPanel={easyViewPayPanel}
                 selectedBillId={easyViewSelectedBillId}
@@ -573,11 +823,15 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
             </div>
             <div className={easyView ? "max-lg:block lg:hidden" : "block"}>
               <PaymentRequestTable
-                ref={tableRef}
-                rows={visibleBills}
+                rows={tablePageRows}
                 statusFilters={statusFilters}
                 loading={loading}
-                onSelectionChange={onTableSelectionChange}
+                sort={tableSort}
+                onSortColumn={onTableSortColumn}
+                selectedIds={selectedIds}
+                onToggleRow={onToggleRow}
+                onToggleAll={onToggleAll}
+                headerSlot={totalsBanner}
                 onRecordPayment={(rowId, readOnly) => setRecordPaymentTarget({ billId: rowId, readOnly: readOnly ?? false })}
                 onRowClick={(rowId) => router.push(`/payment-request/${rowId}`)}
                 onRowDelete={async (rowId) => {
@@ -607,13 +861,14 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                 }}
                 onBankSlipUploaded={loadBills}
               />
+              <div className="px-4 pb-6 sm:px-6">{pagination}</div>
             </div>
           </>
         )}
       </main>
       <BulkDeleteConfirmModal
         open={bulkDeleteModalOpen}
-        selectedCount={selectedBillIds.length}
+        selectedCount={activeSelectedIds.length}
         pending={bulkDeletePending}
         onClose={() => {
           if (!bulkDeletePending) setBulkDeleteModalOpen(false);

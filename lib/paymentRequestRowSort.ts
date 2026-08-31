@@ -3,7 +3,12 @@ import { compareNullableNumber, dateSortValue } from "@/lib/paymentRequestDateSo
 
 export type SortKey = "contact" | "invoiceDate" | "status" | "submittedDate" | "unpaidAmount" | "paidDate";
 
-function unpaidSortValue(s: string): number | null {
+/**
+ * Parses a display amount to a number. Handles both row shapes: `invoiceTotal`
+ * carries no currency symbol (`"6,000.00"`), `unpaidAmount` does (`"HK$ 1,500.00"`).
+ * Returns null for blank/unparseable values.
+ */
+export function parseRowAmount(s: string): number | null {
   const t = s.trim();
   if (!t) return null;
   const n = Number.parseFloat(t.replace(/[^0-9.-]+/g, ""));
@@ -48,7 +53,7 @@ export function compareRows(a: PaymentRequestRow, b: PaymentRequestRow, key: Sor
       return a.status.localeCompare(b.status, undefined, { sensitivity: "base" }) * d;
     }
     case "unpaidAmount":
-      return compareNullableNumber(unpaidSortValue(a.unpaidAmount), unpaidSortValue(b.unpaidAmount), d);
+      return compareNullableNumber(parseRowAmount(a.unpaidAmount), parseRowAmount(b.unpaidAmount), d);
     default:
       return 0;
   }

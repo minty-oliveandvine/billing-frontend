@@ -385,10 +385,10 @@ export function PaymentRequestToolbar({
 
       <div className="flex w-full min-w-0 flex-row items-center gap-2 sm:gap-2 xl:w-auto xl:max-w-3xl xl:flex-1">
         <label htmlFor="payment-request-search" className="sr-only">
-          Search by supplier or description
+          Search by supplier, description or amount
         </label>
         <div className="relative min-w-0 flex-1">
-          <input id="payment-request-search" type="search" name="q" value={searchQuery ?? ""} onChange={(e) => onSearchChange(e.target.value)} placeholder="Search by supplier or description" autoComplete="off" className="box-border h-11 min-h-[44px] w-full rounded-lg border border-primary/25 bg-white py-0 pl-3 pr-3 text-base leading-normal text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/30 sm:h-[42px] sm:min-h-[42px] sm:text-sm" suppressHydrationWarning />
+          <input id="payment-request-search" type="search" name="q" value={searchQuery ?? ""} onChange={(e) => onSearchChange(e.target.value)} placeholder="Search by supplier, description or amount" autoComplete="off" className="box-border h-11 min-h-[44px] w-full rounded-lg border border-primary/25 bg-white py-0 pl-3 pr-3 text-base leading-normal text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/30 sm:h-[42px] sm:min-h-[42px] sm:text-sm" suppressHydrationWarning />
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <div ref={filterWrapRef} className="relative">

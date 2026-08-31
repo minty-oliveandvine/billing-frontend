@@ -24,6 +24,15 @@ export {
 } from "./PaymentRequestToolbar";
 export { PaymentRequestView } from "./PaymentRequestView";
 export {
+  PaymentRequestPagination,
+  PAGE_SIZE_OPTIONS,
+  type PaymentRequestPaginationProps,
+} from "./PaymentRequestPagination";
+export {
+  PaymentRequestTotalsBanner,
+  type PaymentRequestTotalsBannerProps,
+} from "./PaymentRequestTotalsBanner";
+export {
   BankSlipDetailsModal,
   type BankSlipDetails,
   type BankSlipDetailsModalProps,

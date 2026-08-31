@@ -28,6 +28,8 @@ type ThemedSelectProps = {
   uniformFill?: boolean;
   /** For split style only: render chevron without gray boxed segment. */
   plainChevron?: boolean;
+  /** Centers the selected value in the trigger (short values like a page size). */
+  centerValue?: boolean;
   error?: boolean;
   disabled?: boolean;
   /** Typable combobox: filter options as you type (e.g. long account code lists). */
@@ -46,6 +48,7 @@ export function ThemedSelect({
   fullWidth = true,
   uniformFill = false,
   plainChevron = false,
+  centerValue = false,
   error = false,
   disabled = false,
   searchable = false,
@@ -144,7 +147,7 @@ export function ThemedSelect({
   const displayLabel = placeholderShowing
     ? placeholder
     : selected?.label ?? (options[0]?.label ?? "");
-  const displayTextClass = placeholderShowing ? "text-gray-700" : "";
+  const displayTextClass = `${placeholderShowing ? "text-gray-700" : ""} ${centerValue ? "text-center" : ""}`;
 
   const closedInputValue = placeholderShowing ? "" : (selected?.label ?? "");
 

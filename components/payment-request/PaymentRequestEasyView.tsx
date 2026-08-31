@@ -16,7 +16,8 @@ import { type EasyViewDraftDetailActions } from "./EasyViewDraftDetailedInformat
 import { EasyViewDraftDetailBody, EasyViewReadonlyBillDetailBody } from "./EasyViewDraftDetailBody";
 import { useEntityCurrency } from "@/lib/entityCurrency";
 import { statusDisplayBadgeClass } from "@/lib/billStatusDisplay";
-import { compareRows, type SortKey } from "@/lib/paymentRequestRowSort";
+import { type SortKey } from "@/lib/paymentRequestRowSort";
+import { HEADER_CHECKBOX_CLASS } from "./paymentRequestCheckboxClasses";
 import type { PaymentRequestRow } from "./PaymentRequestTable";
 import type { PaymentRequestStatusFilter } from "./PaymentRequestToolbar";
 
@@ -30,6 +31,19 @@ const easyViewSubmittedTd = `${EASY_VIEW_TD_BASE} align-middle whitespace-nowrap
 const easyViewUnpaidTd = `${EASY_VIEW_TD_BASE} align-middle tabular-nums min-w-0`;
 const easyViewAttachmentTd = `${EASY_VIEW_TD_BASE} align-middle flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 overflow-visible sm:gap-2`;
 const easyViewStatusTd = `${EASY_VIEW_TD_BASE} align-middle min-w-0 max-w-full overflow-hidden`;
+/**
+ * Deliberately does NOT compose `EASY_VIEW_TD_BASE`: its `px-4 sm:px-5` would leave
+ * no content width inside the 2.25rem checkbox track and collapse the input.
+ */
+const easyViewCheckboxTd = "flex items-center justify-center py-3 sm:py-3.5";
+/**
+ * Mirrors a header label cell’s box so the checkbox lands on their line: 28px of content
+ * (their `size-7` sort chevrons) plus `py-3 sm:py-3.5`. That `sm:` variant is emitted after
+ * `EASY_VIEW_HEADER_CELL`’s base `pt-0 pb-0` and outranks it, so those cells are 56px tall,
+ * not 28px. `box-content` keeps `h-7` as the content height rather than the total.
+ */
+const easyViewHeaderCheckboxTd =
+  "flex h-7 box-content items-center justify-center py-3 sm:py-3.5 translate-y-[15px]";
 
 /** For the **first** visible bill only: list scrolled this far from top — default invoice aside (no offset). */
 const EASY_VIEW_INVOICE_SCROLL_TOP_DEFAULT_PX = 32;
@@ -40,7 +54,7 @@ const EASY_VIEW_INVOICE_SCROLL_TOP_DEFAULT_PX = 32;
 const EASY_VIEW_INVOICE_ROW_TOP_DEFAULT_PX = 160;
 
 const EASY_VIEW_GRID_COLS =
-  "md:grid-cols-[minmax(10rem,1.32fr)_minmax(10.5rem,1.15fr)_minmax(11rem,0.52fr)_minmax(8.5rem,0.9fr)_minmax(10rem,0.82fr)]";
+  "md:grid-cols-[2.25rem_minmax(10rem,1.32fr)_minmax(10.5rem,1.15fr)_minmax(11rem,0.52fr)_minmax(8.5rem,0.9fr)_minmax(10rem,0.82fr)]";
 
 const EASY_VIEW_ROW_GRID = `grid w-full min-w-0 grid-cols-1 gap-4 ${EASY_VIEW_GRID_COLS} md:gap-x-3 md:gap-y-0 md:items-center`;
 
@@ -59,7 +73,7 @@ const EASY_VIEW_BANKSLIP_SLOT =
   "flex h-10 w-24 shrink-0 items-center justify-center sm:h-[42px] sm:w-[6.5rem]";
 
 /** Sortable columns exposed in easy view (same `compareRows` as the main table). */
-type EasyViewSortKey = Extract<SortKey, "contact" | "submittedDate" | "unpaidAmount" | "status">;
+export type EasyViewSortKey = Extract<SortKey, "contact" | "submittedDate" | "unpaidAmount" | "status">;
 
 function EasyViewBankSlipControl({
   row,
@@ -133,10 +147,22 @@ function easyViewMainBackgroundClass(status: string): string {
 }
 
 export type PaymentRequestEasyViewProps = {
+  /** The current page slice — already filtered and sorted by `PaymentRequestView`. */
   rows: PaymentRequestRow[];
   loading: boolean;
-  /**  Empty array = "All" (no filter). Multiple entries = stacked OR-filter. */
+  /**  Empty array = "All" (no filter). Drives the heading, tint and aside image. */
   activeStatuses: PaymentRequestStatusFilter[];
+  /** Sort is owned by the parent so the page slice is taken after sorting. */
+  sort: { key: EasyViewSortKey; dir: "asc" | "desc" };
+  onSortChange: (key: EasyViewSortKey) => void;
+  /** Selection is shared with the table view and spans pages. */
+  selectedIds: ReadonlySet<string>;
+  onToggleRow: (rowId: string) => void;
+  onToggleAll: (rowIds: string[], next: boolean) => void;
+  /** Rendered top-right above the list (the totals banner). */
+  totalsBanner?: ReactNode;
+  /** Rendered below the list, outside its scroll container. */
+  pagination?: ReactNode;
   payPanelBillId: string | null;
   payPanel: ReactNode;
   /** When set, the right column shows invoice attachments for this bill (same preview as details page). */
@@ -324,6 +350,13 @@ export function PaymentRequestEasyView({
   rows,
   loading,
   activeStatuses,
+  sort,
+  onSortChange,
+  selectedIds,
+  onToggleRow,
+  onToggleAll,
+  totalsBanner,
+  pagination,
   payPanelBillId,
   payPanel,
   selectedBillId,
@@ -344,33 +377,22 @@ export function PaymentRequestEasyView({
   easyViewDraftDeleteOpen = false,
 }: PaymentRequestEasyViewProps) {
   const entityCurrency = useEntityCurrency();
-  const [sort, setSort] = useState<{ key: EasyViewSortKey; dir: "asc" | "desc" }>({
-    key: "status",
-    dir: "asc",
-  });
   const listScrollRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
   const [invoiceAsideOffsetY, setInvoiceAsideOffsetY] = useState(0);
 
   const activeStatusKey = activeStatuses.join("|");
-  const visibleRows = useMemo(() => {
-    const filtered =
-      activeStatuses.length === 0 ? rows : rows.filter((r) => activeStatuses.some((s) => s === r.status));
-    const copy = [...filtered];
-    copy.sort((a, b) => compareRows(a, b, sort.key, sort.dir));
-    return copy;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, activeStatusKey, sort]);
 
-  /** Match `PaymentRequestTable` `onSortColumn`: same column toggles direction; new column starts at `asc`. */
-  const setEasyViewSort = useCallback((key: EasyViewSortKey) => {
-    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
-  }, []);
+  /** "Select all" means everything selectable on this page — selection spans pages. */
+  const selectableRows = useMemo(() => rows.filter((r) => r.status !== "Voided"), [rows]);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedIds.has(r.id));
+  const someSelected = selectableRows.some((r) => selectedIds.has(r.id)) && !allSelected;
 
   useEffect(() => {
-    setSort({ key: "status", dir: "asc" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStatusKey]);
+    const el = headerCheckboxRef.current;
+    if (el) el.indeterminate = someSelected;
+  }, [someSelected]);
 
   const updateInvoiceAsideAlign = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -395,7 +417,7 @@ export function PaymentRequestEasyView({
     const listRect = listEl.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
     const rowDistanceBelowListTop = rowRect.top - listRect.top;
-    const firstVisibleId = visibleRows[0]?.id;
+    const firstVisibleId = rows[0]?.id;
     const isFirstVisibleBill = firstVisibleId != null && selectedBillId === firstVisibleId;
     if (
       isFirstVisibleBill &&
@@ -408,18 +430,18 @@ export function PaymentRequestEasyView({
     const asideRect = asideRef.current.getBoundingClientRect();
     const y = rowRect.top - asideRect.top;
     setInvoiceAsideOffsetY(Math.max(0, Math.round(y)));
-  }, [selectedBillId, visibleRows]);
+  }, [selectedBillId, rows]);
 
   /** Dim other rows only while inline pay or detailed information is expanded (not when only the invoice aside is focused). */
   const opacityFocusBillId = useMemo(() => {
-    if (payPanelBillId != null && payPanel != null && visibleRows.some((r) => r.id === payPanelBillId)) {
+    if (payPanelBillId != null && payPanel != null && rows.some((r) => r.id === payPanelBillId)) {
       return payPanelBillId;
     }
-    if (draftDetailBillId != null && visibleRows.some((r) => r.id === draftDetailBillId)) {
+    if (draftDetailBillId != null && rows.some((r) => r.id === draftDetailBillId)) {
       return draftDetailBillId;
     }
     return null;
-  }, [payPanelBillId, payPanel, draftDetailBillId, visibleRows]);
+  }, [payPanelBillId, payPanel, draftDetailBillId, rows]);
 
   /** After row selection or opening inline pay / detail, scroll that bill card into view (avoid centering top rows — clips against the list edge). */
   useEffect(() => {
@@ -437,7 +459,7 @@ export function PaymentRequestEasyView({
       const listRect = listEl.getBoundingClientRect();
       const rowRect = el.getBoundingClientRect();
       const rowDistanceBelowListTop = rowRect.top - listRect.top;
-      const firstVisibleId = visibleRows[0]?.id;
+      const firstVisibleId = rows[0]?.id;
       const isFirstVisibleBill = firstVisibleId != null && rowId === firstVisibleId;
       const treatAsUpperList =
         isFirstVisibleBill &&
@@ -450,7 +472,7 @@ export function PaymentRequestEasyView({
       });
     });
     return () => cancelAnimationFrame(id);
-  }, [selectedBillId, draftDetailBillId, payPanelBillId, visibleRows, sort]);
+  }, [selectedBillId, draftDetailBillId, payPanelBillId, rows, sort]);
 
   /** Large screens: shift invoice aside with marginTop so its block lines up with the selected row (aside scrolls if needed). */
   useLayoutEffect(() => {
@@ -472,7 +494,7 @@ export function PaymentRequestEasyView({
     };
   }, [
     updateInvoiceAsideAlign,
-    visibleRows.length,
+    rows.length,
     sort,
     invoiceAttachmentsLoading,
     invoiceAttachments.length,
@@ -525,10 +547,11 @@ export function PaymentRequestEasyView({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
           <span className="min-w-0 truncate text-[18px] font-semibold text-black" title={headerStatusLabel}>
             {headerStatusLabel}
           </span>
+          {totalsBanner}
         </div>
 
         <div ref={listScrollRef} className="min-h-0 flex-1 overflow-auto">
@@ -538,7 +561,7 @@ export function PaymentRequestEasyView({
               <EasyViewSortChevronButton
                 sortDir={sort.dir}
                 active={sort.key === "contact"}
-                onToggle={() => setEasyViewSort("contact")}
+                onToggle={() => onSortChange("contact")}
                 ariaLabel={`Sort by supplier${sort.key === "contact" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                 title="Sort A-Z"
               />
@@ -548,7 +571,7 @@ export function PaymentRequestEasyView({
               <EasyViewSortChevronButton
                 sortDir={sort.dir}
                 active={sort.key === "submittedDate"}
-                onToggle={() => setEasyViewSort("submittedDate")}
+                onToggle={() => onSortChange("submittedDate")}
                 ariaLabel={`Sort by submitted date${sort.key === "submittedDate" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                 title="Sort Newest - Oldest"
               />
@@ -558,7 +581,7 @@ export function PaymentRequestEasyView({
               <EasyViewSortChevronButton
                 sortDir={sort.dir}
                 active={sort.key === "status"}
-                onToggle={() => setEasyViewSort("status")}
+                onToggle={() => onSortChange("status")}
                 ariaLabel={`Sort by status${sort.key === "status" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                 title="Sort Status"
               />
@@ -568,7 +591,7 @@ export function PaymentRequestEasyView({
               <EasyViewSortChevronButton
                 sortDir={sort.dir}
                 active={sort.key === "unpaidAmount"}
-                onToggle={() => setEasyViewSort("unpaidAmount")}
+                onToggle={() => onSortChange("unpaidAmount")}
                 ariaLabel={`Sort by unpaid amount${sort.key === "unpaidAmount" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                 title="Sort Highest - Lowest"
               />
@@ -576,6 +599,9 @@ export function PaymentRequestEasyView({
           </div>
           {loading ? (
             <div className={EASY_VIEW_HEADER_GRID} aria-hidden>
+              <div className={easyViewHeaderCheckboxTd}>
+                <div className="h-4 w-4 shrink-0 rounded bg-gray-200/90 animate-pulse" />
+              </div>
               <div className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex items-end justify-start gap-1 pb-1`}>
                 <div className="h-3.5 w-[min(100%,11rem)] rounded-md bg-gray-200/90 animate-pulse" />
                 <div className="size-7 shrink-0 rounded bg-gray-200/90 animate-pulse" />
@@ -599,6 +625,18 @@ export function PaymentRequestEasyView({
             </div>
           ) : (
             <div className={EASY_VIEW_HEADER_GRID}>
+              <div className={easyViewHeaderCheckboxTd}>
+                <input
+                  ref={headerCheckboxRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() => onToggleAll(selectableRows.map((r) => r.id), !allSelected)}
+                  disabled={selectableRows.length === 0}
+                  className={`${HEADER_CHECKBOX_CLASS} shrink-0 disabled:cursor-not-allowed disabled:opacity-40`}
+                  aria-label="Select all rows"
+                  suppressHydrationWarning
+                />
+              </div>
               <div
                 className={`${EASY_VIEW_HEADER_CELL} ${EASY_VIEW_TD_BASE} flex min-w-0 flex-row flex-nowrap items-end justify-start gap-1 -translate-x-[10px]`}
               >
@@ -606,7 +644,7 @@ export function PaymentRequestEasyView({
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
                   active={sort.key === "contact"}
-                  onToggle={() => setEasyViewSort("contact")}
+                  onToggle={() => onSortChange("contact")}
                   ariaLabel={`Sort by supplier${sort.key === "contact" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                   title="Sort A-Z"
                 />
@@ -620,7 +658,7 @@ export function PaymentRequestEasyView({
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
                   active={sort.key === "submittedDate"}
-                  onToggle={() => setEasyViewSort("submittedDate")}
+                  onToggle={() => onSortChange("submittedDate")}
                   ariaLabel={`Sort by submitted date${sort.key === "submittedDate" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                   title="Sort Newest - Oldest"
                 />
@@ -641,7 +679,7 @@ export function PaymentRequestEasyView({
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
                   active={sort.key === "unpaidAmount"}
-                  onToggle={() => setEasyViewSort("unpaidAmount")}
+                  onToggle={() => onSortChange("unpaidAmount")}
                   ariaLabel={`Sort by unpaid amount${sort.key === "unpaidAmount" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                   title="Sort Highest - Lowest"
                 />
@@ -655,7 +693,7 @@ export function PaymentRequestEasyView({
                 <EasyViewSortChevronButton
                   sortDir={sort.dir}
                   active={sort.key === "status"}
-                  onToggle={() => setEasyViewSort("status")}
+                  onToggle={() => onSortChange("status")}
                   ariaLabel={`Sort by status${sort.key === "status" ? (sort.dir === "asc" ? ", ascending" : ", descending") : ""}`}
                   title="Sort Status"
                 />
@@ -670,6 +708,9 @@ export function PaymentRequestEasyView({
                   key={`sk-${i}`}
                   className={`${EASY_VIEW_ROW_GRID} rounded-lg border border-gray-200 bg-white`}
                 >
+                  <div className={easyViewCheckboxTd}>
+                    <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-gray-200" />
+                  </div>
                   <div className={`${easyViewContactTd} space-y-2 py-0.5`}>
                     <div className="h-4 max-w-[14rem] animate-pulse rounded bg-gray-200" />
                     <div className="h-3 max-w-[min(100%,20rem)] animate-pulse rounded bg-gray-100" />
@@ -697,13 +738,13 @@ export function PaymentRequestEasyView({
                 </li>
               ))}
             </ul>
-          ) : visibleRows.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-4 py-12 text-center text-sm text-primary/60">
               Hmm, nothing here with this status just yet.
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {visibleRows.map((row) => {
+              {rows.map((row) => {
                 const isPayPanelOpen = payPanelBillId === row.id && payPanel != null;
                 const isDraftDetailOpen = draftDetailBillId === row.id && !easyViewDraftDeleteOpen;
                 const isRowSelected = selectedBillId === row.id;
@@ -717,17 +758,37 @@ export function PaymentRequestEasyView({
                       isRowSelected ? "border-secondary/50" : "border-gray-200"
                     } ${dimRow ? "opacity-20" : "opacity-100"}`}
                   >
-                    <a
-                      href={`/payment-request/${row.id}`}
-                      onClick={(e) => {
-                        if (dimRow) {
-                          e.preventDefault();
-                          onOutsideCloseRequested?.();
-                        }
-                      }}
+                    {/* The grid lives on this wrapper, not the anchor, so the checkbox can sit
+                        outside the link: stopPropagation would not cancel the navigation and
+                        preventDefault would cancel the checkbox's own toggle. */}
+                    <div
                       className={`${EASY_VIEW_ROW_GRID} cursor-pointer transition-colors hover:border-primary/20 hover:bg-gray-50/80`}
                     >
-                      
+                      <div className={easyViewCheckboxTd}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(row.id)}
+                          disabled={row.status === "Voided"}
+                          onChange={() => onToggleRow(row.id)}
+                          className={`${HEADER_CHECKBOX_CLASS} shrink-0 disabled:cursor-not-allowed disabled:opacity-40`}
+                          aria-label={
+                            row.status === "Voided"
+                              ? `Voided — cannot select ${row.contactTitle}`
+                              : `Select row ${row.contactTitle}`
+                          }
+                          suppressHydrationWarning
+                        />
+                      </div>
+                      <a
+                        href={`/payment-request/${row.id}`}
+                        onClick={(e) => {
+                          if (dimRow) {
+                            e.preventDefault();
+                            onOutsideCloseRequested?.();
+                          }
+                        }}
+                        className="contents"
+                      >
                         <div className={easyViewContactTd}>
                           <div className="flex min-w-0 flex-col gap-0.5">
                             <span className="text-sm font-semibold text-primary sm:text-base">{row.contactTitle}</span>
@@ -779,8 +840,8 @@ export function PaymentRequestEasyView({
                             onDraftBillOpen={onDraftBillOpen}
                           />
                         </div>
-                      
-                    </a>
+                      </a>
+                    </div>
                     {isPayPanelOpen ? (
                       <div
                         className="border-t border-gray-200 bg-gray-50/50 p-4 sm:p-5"
@@ -838,6 +899,10 @@ export function PaymentRequestEasyView({
             </ul>
           )}
         </div>
+        {/* Sibling of the scroll container, so the pager stays pinned below the list. */}
+        {pagination ? (
+          <div className="shrink-0 border-t border-gray-100 pb-3 pt-2">{pagination}</div>
+        ) : null}
       </div>
 
       <div

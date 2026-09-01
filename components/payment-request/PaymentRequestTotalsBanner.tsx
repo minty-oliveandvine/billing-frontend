@@ -6,8 +6,8 @@ import { currencyLabelForCode } from "@/lib/currencyDisplay";
 import { formatIsoDateForDisplay } from "@/lib/dateDisplayFormat";
 import { parseRowAmount } from "@/lib/paymentRequestRowSort";
 
-/** Currencies listed before the "+N more" summary line. */
-const MAX_CURRENCY_LINES = 3;
+/** Currency groups rendered in full before the rest collapse into a "+N more" line. */
+const MAX_CURRENCY_GROUPS = 2;
 
 export type PaymentRequestTotalsBannerProps = {
   /** Every row matching the current filters + search — NOT just the current page. */
@@ -20,23 +20,27 @@ export type PaymentRequestTotalsBannerProps = {
   className?: string;
 };
 
+type CurrencyTotals = { code: string; invoice: number; unpaid: number };
+
 function formatTotal(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**
- * Sums invoice totals per currency so HKD is never silently added to USD.
- * Sorted by descending total; the largest currency leads the banner.
+ * Sums both figures per currency so HKD is never silently added to USD.
+ * `invoiceTotal` carries no symbol ("6,000.00"), `unpaidAmount` does ("HK$ 1,500.00") —
+ * `parseRowAmount` handles both. Largest unpaid total leads, matching the headline figure.
  */
-function sumByCurrency(rows: PaymentRequestRow[]): Array<{ code: string; total: number }> {
-  const byCode = new Map<string, number>();
+function sumByCurrency(rows: PaymentRequestRow[]): CurrencyTotals[] {
+  const byCode = new Map<string, CurrencyTotals>();
   for (const row of rows) {
     const code = row.currencyCode?.trim() || "HKD";
-    byCode.set(code, (byCode.get(code) ?? 0) + (parseRowAmount(row.invoiceTotal ?? "") ?? 0));
+    const entry = byCode.get(code) ?? { code, invoice: 0, unpaid: 0 };
+    entry.invoice += parseRowAmount(row.invoiceTotal ?? "") ?? 0;
+    entry.unpaid += parseRowAmount(row.unpaidAmount ?? "") ?? 0;
+    byCode.set(code, entry);
   }
-  return [...byCode.entries()]
-    .map(([code, total]) => ({ code, total }))
-    .sort((a, b) => b.total - a.total);
+  return [...byCode.values()].sort((a, b) => b.unpaid - a.unpaid);
 }
 
 /** `10 Aug 2026 - 17 Aug 2026`, or just the one side that is set. */
@@ -50,13 +54,11 @@ function formatDateRange(startDate: string, endDate: string): string {
 }
 
 /**
- * Top-right totals summary. Three modes, in precedence order:
- * 1. rows checked → "Selected total amount" over the selection;
- * 2. a date range applied → "Total amount" plus the range as a subtitle;
- * 3. otherwise → "Total amount".
+ * Totals summary shown above the list: unpaid amount as the headline figure with the
+ * invoice total beneath it. When rows are checked both switch to the selection.
  *
- * Modes 2 and 3 sum the same array: start/end are pushed to the server as
- * `date_from`/`date_to`, so `allRows` is already range-limited.
+ * Visibility is the caller's call — `PaymentRequestView` renders this only when there
+ * is a selection or an active filter.
  */
 export function PaymentRequestTotalsBanner({
   allRows,
@@ -69,38 +71,48 @@ export function PaymentRequestTotalsBanner({
   const rows = hasSelection ? selectedRows : allRows;
   const totals = useMemo(() => sumByCurrency(rows), [rows]);
 
-  const label = hasSelection ? "Selected total amount" : "Total amount";
   const subtitle = hasSelection ? "" : formatDateRange(startDate, endDate);
+  const unpaidLabel = hasSelection ? "Selected total unpaid amount" : "Total unpaid amount";
+  const invoiceLabel = hasSelection ? "Selected total invoice amount" : "Total invoice amount";
 
-  const primary = totals[0] ?? { code: "HKD", total: 0 };
-  const extras = totals.slice(1, MAX_CURRENCY_LINES);
-  const hiddenCount = Math.max(0, totals.length - MAX_CURRENCY_LINES);
+  // An empty result set still renders a zeroed box rather than collapsing to nothing.
+  const groups =
+    totals.length > 0 ? totals.slice(0, MAX_CURRENCY_GROUPS) : [{ code: "HKD", invoice: 0, unpaid: 0 }];
+  const hiddenCount = Math.max(0, totals.length - MAX_CURRENCY_GROUPS);
   const mixed = totals.length > 1;
 
   return (
     <div
-      className={`inline-flex max-w-full items-center justify-between gap-6 rounded-xl border-2 border-secondary bg-white px-4 py-2.5 ${className}`}
+      className={`inline-flex max-w-full flex-col rounded-xl border-2 border-secondary bg-white px-4 py-2.5 ${className}`}
       role="status"
       aria-live="polite"
     >
-      <div className="flex min-w-0 flex-col">
-        <span className="text-xs font-medium text-gray-500">{label}</span>
-        {subtitle ? <span className="text-[11px] text-gray-400 tabular-nums">{subtitle}</span> : null}
-      </div>
-      <div className="flex shrink-0 flex-col items-end">
-        <span className="whitespace-nowrap text-2xl font-semibold tabular-nums text-secondary">
-          {mixed ? `${currencyLabelForCode(primary.code)} ` : ""}
-          {formatTotal(primary.total)}
+      {subtitle ? <span className="text-[11px] text-gray-400 tabular-nums">{subtitle}</span> : null}
+      {groups.map((g) => (
+        <div key={g.code} className="flex flex-col">
+          {mixed ? (
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              {currencyLabelForCode(g.code)}
+            </span>
+          ) : null}
+          {/* Grid, not flex — keeps both figures right-aligned to the same edge. */}
+          <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
+            <span className="text-[15px] font-medium text-black">{unpaidLabel}</span>
+            <span className="whitespace-nowrap text-right text-2xl font-bold tabular-nums text-secondary">
+              {formatTotal(g.unpaid)}
+            </span>
+            <span className="text-sm text-gray-400">{invoiceLabel}</span>
+            <span className="whitespace-nowrap text-right text-base tabular-nums text-gray-400">
+              {formatTotal(g.invoice)}
+            </span>
+          </div>
+        </div>
+      ))}
+      {hiddenCount > 0 ? (
+        <span className="text-xs text-gray-400">
+          +{hiddenCount} more {hiddenCount === 1 ? "currency" : "currencies"}
         </span>
-        {extras.map((t) => (
-          <span key={t.code} className="whitespace-nowrap text-sm font-semibold tabular-nums text-secondary">
-            {currencyLabelForCode(t.code)} {formatTotal(t.total)}
-          </span>
-        ))}
-        {hiddenCount > 0 ? (
-          <span className="whitespace-nowrap text-xs text-gray-400">+{hiddenCount} more</span>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -29,6 +29,10 @@ export type PaymentRequestRow = {
   contactTitle: string;
   contactCaption: string;
   invoiceDate: string;
+  /** Hong Kong calendar date (`yyyy-mm-dd`) behind `invoiceDate`, for date filtering. */
+  invoiceDateIso?: string;
+  /** Hong Kong calendar date (`yyyy-mm-dd`) behind `submittedDate`, for date filtering. */
+  submittedDateIso?: string;
   status: string;
   submittedDate: string;
   unpaidAmount: string;

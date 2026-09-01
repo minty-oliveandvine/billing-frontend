@@ -46,6 +46,32 @@ export function formatLocalDateForDisplay(d: Date): string {
   return formatIsoDateForDisplay(`${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
 }
 
+/** The timezone bills are reckoned in — display and date filtering must agree on it. */
+export const BILLING_TIME_ZONE = "Asia/Hong_Kong";
+
+/**
+ * The calendar date an instant falls on in `timeZone`, as `yyyy-mm-dd`.
+ *
+ * Needed because API timestamps are UTC: 2026-08-31T18:00:00Z is 1 Sep in Hong Kong.
+ * Taking the first 10 characters of the raw string would call that 31 Aug, which is
+ * what made the submitted-date column and its filter disagree. The ISO shape also
+ * compares correctly with plain `<`/`>` against the filter's date inputs.
+ */
+export function isoDateInTimeZone(d: Date, timeZone: string): string {
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  if (!y || !m || !day) return "";
+  return `${y}-${m}-${day}`;
+}
+
 export function formatDateInTimeZoneForDisplay(d: Date, timeZone: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-GB", {

@@ -13,6 +13,9 @@ const FILTER_DATE_TYPE_OPTIONS = [
   { value: "Submitted Date", label: "Submitted Date" },
 ] as const;
 
+/** The date range means invoice date unless the user says otherwise. */
+export const DEFAULT_FILTER_DATE_TYPE = "Invoice Date";
+
 /** Xero publish state. Empty value = "All" (no filter). */
 const FILTER_XERO_STATUS_OPTIONS = [
   { value: "", label: "All" },
@@ -51,6 +54,8 @@ type PaymentRequestToolbarProps = {
   onBillCreated?: () => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  /** Fired on Enter (desktop) or the Search key (mobile keyboards) — narrows to an exact match. */
+  onSearchSubmit?: () => void;
   bulkActionsEnabled: boolean;
   bulkSelectedCount?: number;
   onBulkDeleteSelected?: () => void;
@@ -83,6 +88,7 @@ export function PaymentRequestToolbar({
   onBillCreated,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   bulkActionsEnabled,
   bulkSelectedCount = 0,
   onBulkDeleteSelected,
@@ -123,17 +129,19 @@ export function PaymentRequestToolbar({
   const statusButtonRef = useRef<HTMLButtonElement | null>(null);
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
-  const [dateType, setDateType] = useState("");
+  const [dateType, setDateType] = useState<string>(DEFAULT_FILTER_DATE_TYPE);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [xeroStatus, setXeroStatus] = useState("");
+  /** The date range applies to whichever field Date Type names. */
+  const dateRangeNoun = dateType === "Submitted Date" ? "Submitted" : "Invoice";
 
   /** When the filter panel opens, show the last saved filters (discard any unsaved draft from a previous close). */
   useEffect(() => {
     if (!filterOpen) return;
     setMinAmount(appliedMinAmount ?? "");
     setMaxAmount(appliedMaxAmount ?? "");
-    setDateType(appliedDateType ?? "");
+    setDateType(appliedDateType || DEFAULT_FILTER_DATE_TYPE);
     setStartDate(appliedStartDate ?? "");
     setEndDate(appliedEndDate ?? "");
     setXeroStatus(appliedXeroStatus ?? "");
@@ -270,11 +278,11 @@ export function PaymentRequestToolbar({
   const onResetFilterDraft = () => {
     setMinAmount("");
     setMaxAmount("");
-    setDateType("");
+    setDateType(DEFAULT_FILTER_DATE_TYPE);
     setStartDate("");
     setEndDate("");
     setXeroStatus("");
-    onApplyFilters?.({ minAmount: "", maxAmount: "", dateType: "", startDate: "", endDate: "", xeroStatus: "" });
+    onApplyFilters?.({ minAmount: "", maxAmount: "", dateType: DEFAULT_FILTER_DATE_TYPE, startDate: "", endDate: "", xeroStatus: "" });
     setFilterOpen(true);
     if (filterButtonRef.current) {
       // Use filterButtonRef instead of trigger parameter
@@ -387,9 +395,20 @@ export function PaymentRequestToolbar({
         <label htmlFor="payment-request-search" className="sr-only">
           Search by supplier, description or amount
         </label>
-        <div className="relative min-w-0 flex-1">
-          <input id="payment-request-search" type="search" name="q" value={searchQuery ?? ""} onChange={(e) => onSearchChange(e.target.value)} placeholder="Search by supplier, description or amount" autoComplete="off" className="box-border h-11 min-h-[44px] w-full rounded-lg border border-primary/25 bg-white py-0 pl-3 pr-3 text-base leading-normal text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/30 sm:h-[42px] sm:min-h-[42px] sm:text-sm" suppressHydrationWarning />
-        </div>
+        {/*
+          A form, not an onKeyDown handler: phone keyboards show a Search/Go key rather
+          than Enter, and Android IMEs report `key === "Unidentified"` mid-composition,
+          so a keydown test can never fire there. Submitting works on both.
+        */}
+        <form
+          className="relative min-w-0 flex-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSearchSubmit?.();
+          }}
+        >
+          <input id="payment-request-search" type="search" name="q" value={searchQuery ?? ""} onChange={(e) => onSearchChange(e.target.value)} placeholder="Search by supplier, description or amount" autoComplete="off" enterKeyHint="search" className="box-border h-11 min-h-[44px] w-full rounded-lg border border-primary/25 bg-white py-0 pl-3 pr-3 text-base leading-normal text-black placeholder:text-gray-700 focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/30 sm:h-[42px] sm:min-h-[42px] sm:text-sm" suppressHydrationWarning />
+        </form>
         <div className="flex shrink-0 items-center gap-2">
           <div ref={filterWrapRef} className="relative">
             <button ref={filterButtonRef} type="button" aria-label="Filter" aria-expanded={filterOpen ? "true" : "false"} aria-haspopup="dialog" onClick={() => { if (!filterButtonRef.current) return; toggleFilterMenu(filterButtonRef.current); }} className="box-border inline-flex h-11 min-h-[44px] w-11 min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-primary/25 text-primary transition-colors hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary sm:h-[42px] sm:min-h-[42px] sm:w-[42px] sm:min-w-[42px]"><span className="material-symbols-outlined text-[22px] leading-none">filter_alt</span></button>
@@ -441,6 +460,21 @@ export function PaymentRequestToolbar({
                       </div>
                     </div>
                     <div>
+                      <label htmlFor={`${filterFieldIds}-xero-status`} className={fieldLabelClass}>
+                        Xero Status
+                      </label>
+                      <ThemedSelect
+                        id={`${filterFieldIds}-xero-status`}
+                        value={xeroStatus ?? ""}
+                        onChange={setXeroStatus}
+                        options={[...FILTER_XERO_STATUS_OPTIONS]}
+                        ariaLabel="Xero status"
+                        triggerClassName="!rounded-2xl"
+                        plainChevron
+                      />
+                    </div>
+                    {/* Sits directly above the date range it governs. */}
+                    <div>
                       <label htmlFor={`${filterFieldIds}-date-type`} className={fieldLabelClass}>
                         Date Type
                       </label>
@@ -455,43 +489,29 @@ export function PaymentRequestToolbar({
                         plainChevron
                       />
                     </div>
-                    <div>
-                      <label htmlFor={`${filterFieldIds}-xero-status`} className={fieldLabelClass}>
-                        Xero Status
-                      </label>
-                      <ThemedSelect
-                        id={`${filterFieldIds}-xero-status`}
-                        value={xeroStatus ?? ""}
-                        onChange={setXeroStatus}
-                        options={[...FILTER_XERO_STATUS_OPTIONS]}
-                        ariaLabel="Xero status"
-                        triggerClassName="!rounded-2xl"
-                        plainChevron
-                      />
-                    </div>
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-4">
                       <div>
                         <label htmlFor={`${filterFieldIds}-start-date`} className={fieldLabelClass}>
-                          Start Date
+                          {dateRangeNoun} Start Date
                         </label>
                         <DateTextField
                           id={`${filterFieldIds}-start-date`}
                           value={startDate ?? ""}
                           onChange={setStartDate}
-                          calendarAriaLabel="Open calendar for start date"
+                          calendarAriaLabel={`Open calendar for ${dateRangeNoun.toLowerCase()} start date`}
                           textInputClassName={filterDateTextClass}
                           calendarButtonClassName={filterDateCalendarBtnClass}
                         />
                       </div>
                       <div>
                         <label htmlFor={`${filterFieldIds}-end-date`} className={fieldLabelClass}>
-                          End Date
+                          {dateRangeNoun} End Date
                         </label>
                         <DateTextField
                           id={`${filterFieldIds}-end-date`}
                           value={endDate ?? ""}
                           onChange={setEndDate}
-                          calendarAriaLabel="Open calendar for end date"
+                          calendarAriaLabel={`Open calendar for ${dateRangeNoun.toLowerCase()} end date`}
                           textInputClassName={filterDateTextClass}
                           calendarButtonClassName={filterDateCalendarBtnClass}
                         />

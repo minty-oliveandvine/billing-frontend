@@ -106,7 +106,7 @@ export function BillActionBar({
             className="fixed z-[400] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
             style={{ top: pos.top, left: pos.left, minWidth: ROW_MENU_MIN_WIDTH_PX }}
           >
-            {overflowShowPublish ? (
+            {overflowShowPublish || overflowShowRepublish ? (
               <button
                 type="button"
                 role="menuitem"
@@ -118,7 +118,7 @@ export function BillActionBar({
                   void onPublishToXero?.();
                 }}
               >
-                Publish
+                {overflowShowRepublish ? "Republish" : "Publish"}
               </button>
             ) : null}
             <button
@@ -134,21 +134,6 @@ export function BillActionBar({
             >
               {removeMenuLabel}
             </button>
-            {overflowShowRepublish ? (
-              <button
-                type="button"
-                role="menuitem"
-                disabled={publishItemDisabled}
-                className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => {
-                  if (publishItemDisabled) return;
-                  setMenuOpen(false);
-                  void onPublishToXero?.();
-                }}
-              >
-                Republish
-              </button>
-            ) : null}
           </div>,
           document.body,
         )

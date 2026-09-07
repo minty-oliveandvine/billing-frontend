@@ -25,8 +25,10 @@ import {
   deleteBill,
   fetchBill,
   fetchBills,
+  isXeroAuthError,
   publishBill,
   returnBill,
+  XERO_RECONNECT_MESSAGE,
   type BillAttachment,
   type BillListItem,
   type BillDetail
@@ -920,6 +922,27 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                   } catch (err) {
                     showToast(
                       err instanceof Error ? err.message : "This payment didn't quite make it over. Let's try again?",
+                      "error",
+                    );
+                  }
+                }}
+                onRowRepublish={async (rowId) => {
+                  // Same endpoint as publish - there is no separate republish
+                  // route. This prop was declared and called by the row menu
+                  // but never passed, so the menu item did nothing at all.
+                  try {
+                    await publishBill(rowId);
+                    await loadBills();
+                  } catch (err) {
+                    // Republish is the path taken right after reconnecting
+                    // Xero, so surface the reconnect hint the detail page
+                    // already gives rather than a raw API message.
+                    showToast(
+                      isXeroAuthError(err)
+                        ? XERO_RECONNECT_MESSAGE
+                        : err instanceof Error
+                          ? err.message
+                          : "This payment didn't quite make it over. Let's try again?",
                       "error",
                     );
                   }

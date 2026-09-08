@@ -118,7 +118,13 @@ export function BillActionBar({
                   void onPublishToXero?.();
                 }}
               >
-                {overflowShowRepublish ? "Republish" : "Publish"}
+                {publishPending
+                  ? overflowShowRepublish
+                    ? "Republishing…"
+                    : "Publishing…"
+                  : overflowShowRepublish
+                    ? "Republish"
+                    : "Publish"}
               </button>
             ) : null}
             <button
@@ -162,6 +168,21 @@ export function BillActionBar({
       ) : null}
       {useActionsOverflowMenu ? (
         <>
+          {/* The overflow menu closes the moment Republish is clicked, so the disabled
+              trigger was the only sign anything was happening. Publish is a Xero round
+              trip - say so, in the same words the non-overflow button uses. */}
+          {publishPending ? (
+            <span
+              role="status"
+              aria-live="polite"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-primary/60"
+            >
+              <span className="material-symbols-outlined animate-spin text-secondary text-[20px] leading-none" aria-hidden>
+                progress_activity
+              </span>
+              {overflowShowRepublish ? "Republishing…" : "Publishing…"}
+            </span>
+          ) : null}
           <button
             ref={btnRef}
             type="button"
@@ -169,6 +190,7 @@ export function BillActionBar({
             disabled={overflowMenuTriggerDisabled || publishPending}
             className={rowMenuButtonClass}
             aria-label="More payment actions"
+            aria-busy={publishPending ? true : undefined}
             aria-expanded={menuOpen ? "true" : "false"}
             aria-haspopup="menu"
             aria-controls={menuOpen ? menuId : undefined}

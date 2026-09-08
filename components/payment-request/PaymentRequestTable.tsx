@@ -295,8 +295,8 @@ type PaymentRequestTableProps = {
   /** Empty array = no status filter ("All"). Only used to reset transient menus. */
   statusFilters?: PaymentRequestStatusFilter[];
   onRowDelete?: (rowId: string) => void;
-  onRowPublish?: (rowId: string) => void;
-  onRowRepublish?: (rowId: string) => void;
+  onRowPublish?: (rowId: string) => void | Promise<void>;
+  onRowRepublish?: (rowId: string) => void | Promise<void>;
   onRowClick?: (rowId: string) => void;
   loading?: boolean;
   /** Sort is owned by the parent so the page slice is taken after sorting. */
@@ -509,6 +509,9 @@ export function PaymentRequestTable({
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null);
   const [rowDeleteConfirmId, setRowDeleteConfirmId] = useState<string | null>(null);
   const [rowDeletePending, setRowDeletePending] = useState(false);
+  /** Row whose (re)publish is in flight. The menu closes on click, so without this the
+      row gave no sign that a Xero round trip was running. */
+  const [rowPublishPending, setRowPublishPending] = useState<{ rowId: string; mode: "publish" | "republish" } | null>(null);
   const [columnsMenu, setColumnsMenu] = useState<ColumnsMenuState | null>(null);
   const [columnVisibility, setColumnVisibility] = useState<Record<ColumnSelectorKey, boolean>>(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
   const [columnVisibilityDraft, setColumnVisibilityDraft] = useState<Record<ColumnSelectorKey, boolean>>(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
@@ -596,6 +599,21 @@ export function PaymentRequestTable({
     if (!rowDeleteConfirmId) return false;
     return rows.find((r) => r.id === rowDeleteConfirmId)?.status === "Draft";
   }, [rowDeleteConfirmId, rows]);
+
+  const runRowPublish = useCallback(
+    async (rowId: string, mode: "publish" | "republish", handler?: (rowId: string) => void | Promise<void>) => {
+      if (!handler) return;
+      setRowPublishPending({ rowId, mode });
+      try {
+        await Promise.resolve(handler(rowId));
+      } catch {
+        /* error surfaced by parent */
+      } finally {
+        setRowPublishPending(null);
+      }
+    },
+    [],
+  );
 
   const confirmRowDelete = useCallback(async () => {
     if (!rowDeleteConfirmId) return;
@@ -938,6 +956,7 @@ export function PaymentRequestTable({
                 const isReturned = row.status === "Returned";
                 const bankslipReadOnly = isVoided || isDraft;
                 const xeroConnected = !isDraft && row.xeroActive;
+                const isRowPublishing = rowPublishPending?.rowId === row.id;
                 return (
                   <tr key={row.id} className={`transition-colors duration-150 ease-out cursor-pointer hover:bg-gray-50`} onClick={() => { onRowClick?.(row.id); }}>
                     <td className="border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3">
@@ -1130,8 +1149,8 @@ export function PaymentRequestTable({
                       <img src={xeroConnected ? "/xero-active.png" : "/xero-inactive.png"} alt={xeroConnected ? "Xero connected" : "Xero not connected"} width={40} height={40} className="mx-auto h-10 w-10 max-h-10 max-w-10 object-contain" />
                     </td>
                     <td className={`border-b border-gray-100 px-2 py-3 text-center align-middle sm:px-3 ${actionBodyCellBg}`}>
-                      <button type="button" data-row-menu-trigger disabled={isVoided} className={rowMenuButtonClass} aria-label={isVoided ? `Voided — row actions not available for ${row.contactTitle}` : `More options for ${row.contactTitle}`} aria-expanded={rowMenu?.rowId === row.id ? "true" : "false"} aria-haspopup={isVoided ? undefined : "menu"} onClick={(e) => { e.stopPropagation(); if (isVoided) return; toggleRowMenu(row.id, e.currentTarget); }}>
-                        <span className="material-symbols-outlined text-[22px] leading-none" aria-hidden>more_vert</span>
+                      <button type="button" data-row-menu-trigger disabled={isVoided || isRowPublishing} className={rowMenuButtonClass} aria-label={isRowPublishing ? `${rowPublishPending?.mode === "republish" ? "Republishing" : "Publishing"} ${row.contactTitle} to Xero` : isVoided ? `Voided — row actions not available for ${row.contactTitle}` : `More options for ${row.contactTitle}`} aria-busy={isRowPublishing ? true : undefined} aria-expanded={rowMenu?.rowId === row.id ? "true" : "false"} aria-haspopup={isVoided || isRowPublishing ? undefined : "menu"} onClick={(e) => { e.stopPropagation(); if (isVoided || isRowPublishing) return; toggleRowMenu(row.id, e.currentTarget); }}>
+                        <span className={`material-symbols-outlined text-[22px] leading-none${isRowPublishing ? " animate-spin text-secondary" : ""}`} aria-hidden>{isRowPublishing ? "progress_activity" : "more_vert"}</span>
                       </button>
                     </td>
                   </tr>
@@ -1160,11 +1179,11 @@ export function PaymentRequestTable({
         ? createPortal(
             <div data-row-menu-panel role="menu" aria-label="Row actions" className="fixed z-[400] rounded-lg border border-gray-200 bg-white py-1 shadow-lg" style={{ top: rowMenu.top, left: rowMenu.left, minWidth: ROW_MENU_MIN_WIDTH_PX }}>
               {showRowMenuPublish ? (
-                <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { onRowPublish?.(rowMenu.rowId); setRowMenu(null); }}>
+                <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { const id = rowMenu.rowId; setRowMenu(null); void runRowPublish(id, "publish", onRowPublish); }}>
                   Publish
                 </button>
               ) : null}
-              {showRowMenuRepublish ? <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { onRowRepublish?.(rowMenu.rowId); setRowMenu(null); }}>Republish</button> : null}
+              {showRowMenuRepublish ? <button type="button" role="menuitem" className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-100" onClick={() => { const id = rowMenu.rowId; setRowMenu(null); void runRowPublish(id, "republish", onRowRepublish); }}>Republish</button> : null}
               <button type="button" role="menuitem" disabled={isRowMenuDeleteDisabled} className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { if (isRowMenuDeleteDisabled) return; const id = rowMenu.rowId; setRowMenu(null); setRowDeleteConfirmId(id); }}>
                 {rowMenuRow?.status === "Draft" ? "Delete" : "Void"}
               </button>

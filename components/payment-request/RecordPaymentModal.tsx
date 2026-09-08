@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import {
   fetchPayments,
+  ApiError,
   fetchBill,
   createPayment,
   updatePayment,
@@ -332,7 +333,7 @@ export function RecordPaymentModal({
       } catch (err) {
         if (!cancelled) {
           showToast(
-            err instanceof Error ? err.message : "Those payments didn't quite update. Let's give it another go?",
+            err instanceof ApiError ? err.message : "Those payments didn't quite update. Mind trying again?",
             "error",
           );
         }
@@ -357,7 +358,7 @@ export function RecordPaymentModal({
     }
     const amount = payMode === "full" ? remaining : parseAmount(draftAmount);
     if (amount === null || amount <= 0) {
-      setFormError("Hmm, that amount doesn't look quite right.");
+      setFormError("That amount doesn't look quite right.");
       return;
     }
     if (amount > remaining + 1e-9) {
@@ -382,7 +383,7 @@ export function RecordPaymentModal({
       if (payMode === "partial") setDraftAmount("");
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "That payment didn't quite go through. Let's try again?",
+        err instanceof ApiError ? err.message : "That payment didn't quite go through. Mind trying again?",
         "error",
       );
     } finally {
@@ -425,7 +426,7 @@ export function RecordPaymentModal({
       onPaymentSaved?.();
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "That payment's being a bit stubborn - let's try again?",
+        err instanceof ApiError ? err.message : "That payment's being a bit stubborn. Mind trying again?",
         "error",
       );
     } finally {

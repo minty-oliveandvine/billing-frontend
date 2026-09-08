@@ -697,7 +697,7 @@ export function BankSlipDetailsModal({
           /* best-effort rollback */
         }
       }
-      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Let's try again?");
+      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Mind trying again?");
     } finally {
       setUploading(false);
     }
@@ -721,7 +721,7 @@ export function BankSlipDetailsModal({
       if (wasLast) onClose();
     } catch (e) {
       setPendingDeleteFileId(null);
-      setDeleteError(e instanceof ApiError ? e.message : "This bank slip's being a bit stubborn - let's try again?");
+      setDeleteError(e instanceof ApiError ? e.message : "This bank slip's being a bit stubborn. Mind trying again?");
     } finally {
       setDeletePending(false);
     }

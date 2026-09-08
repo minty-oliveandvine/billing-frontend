@@ -14,12 +14,22 @@ import { API_BASE } from "./apiBase";
 //  ── Error ────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
+  /**
+   * The server's own text, before it was made fit to show. `message` is what a
+   * user reads; `detail` is what the shape-detectors below match on, because
+   * Xero's rejection payloads are exactly the machine-shaped text `message` is
+   * now scrubbed of.
+   */
+  public detail?: string;
+
   constructor(
     public status: number,
     message: string,
+    detail?: string,
   ) {
     super(message);
     this.name = "ApiError";
+    this.detail = detail ?? message;
   }
 }
 
@@ -28,7 +38,7 @@ export function isDuplicateBillReferenceError(err: unknown): err is ApiError {
   return (
     err instanceof ApiError &&
     err.status === 422 &&
-    /invoice number already exists/i.test(err.message)
+    /invoice number already exists/i.test(err.detail ?? err.message)
   );
 }
 
@@ -42,14 +52,14 @@ export function isXeroAuthError(err: unknown): err is ApiError {
   return (
     err instanceof ApiError &&
     /authenticationunsuccessful|"?status"?\s*:\s*403|\bforbidden\b|token(?:\s+has)?\s+expired|unauthori[sz]ed/i.test(
-      err.message,
+      err.detail ?? err.message,
     )
   );
 }
 
 /** Copy for a Xero connection that needs re-authorising, in the app's voice. */
 export const XERO_RECONNECT_MESSAGE =
-  "Hmm, the Xero connection needs reconnecting - an admin can sort that in Settings, then I'll get this published.";
+  "The Xero connection needs reconnecting. An admin can do that in Settings, then I'll publish this.";
 
 /**
  * Friendly copy for statuses where the server's own wording is unhelpful or
@@ -61,15 +71,15 @@ export const XERO_RECONNECT_MESSAGE =
  * message must pass through untouched.
  */
 const STATUS_FALLBACK_MESSAGES: Record<number, string> = {
-  403: "Hmm, I can't let you in there.",
-  404: "I searched everywhere, but that doesn't seem to be here anymore.",
-  408: "That took a while to come back to me - let's try again?",
-  409: "Someone else changed this while you were working. Let's refresh and try again?",
-  429: "That's a lot at once! Give me a moment, then let's try again.",
-  500: "Something got stuck on my end! Let's try again?",
-  502: "I couldn't reach the server just now. Let's try again?",
-  503: "The server's having a rest right now. Let's try again in a moment?",
-  504: "The server took too long to get back to me. Let's try again?",
+  403: "You don't have access to that.",
+  404: "I couldn't find that.",
+  408: "That took too long to come back. Mind trying again?",
+  409: "Someone else changed that first. Refresh and try again.",
+  429: "That's a lot of requests at once. Give it a moment and try again.",
+  500: "Something went wrong on my end. Mind trying again?",
+  502: "I couldn't reach the server just now. Mind trying again?",
+  503: "The server is busy right now. Mind trying again in a moment?",
+  504: "The server took too long to answer. Mind trying again?",
 };
 
 /**
@@ -80,15 +90,60 @@ function isRawStatusText(message: string, statusText: string): boolean {
   return message === statusText || message === "";
 }
 
+/**
+ * Shapes that mean the text is machinery rather than a sentence: a serialised
+ * body, markup, a stack, or a bare identifier like `invalid_state`. Any of
+ * these reaching a toast reads as a leak however short they are.
+ */
+function readsAsProse(message: string): boolean {
+  const text = message.trim();
+  if (!text || text.length > 300) return false;
+  if (/[{}[\]<>]/.test(text)) return false;
+  if (/traceback|exception|__|null,/i.test(text)) return false;
+  // A bare machine code (`invalid_state`) is not a sentence. Borrowed from
+  // payerPortal.ts, which has guarded against these since it was written.
+  if (/^[a-z0-9_.:-]+$/.test(text)) return false;
+  return /\s/.test(text);
+}
+
+/**
+ * Flatten whatever the server put in `detail` into one readable sentence.
+ *
+ * django-ninja answers a schema failure with `detail: [{type, loc, msg}, ...]`.
+ * Stringifying that put `{"type":"missing","loc":["body","email"]}` in front of
+ * payers, so pydantic entries are reduced to their `msg` and anything still
+ * object-shaped is dropped rather than rendered as `[object Object]`.
+ */
 function normalizeApiErrorDetail(detail: unknown, fallback: string): string {
   if (detail == null || detail === "") return fallback;
   if (typeof detail === "string") return detail;
+
   if (Array.isArray(detail)) {
-    return detail
-      .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
-      .join("; ");
+    const parts = detail
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (entry && typeof entry === "object") {
+          const msg = (entry as { msg?: unknown }).msg;
+          if (typeof msg === "string") return msg;
+        }
+        return "";
+      })
+      .filter((part) => part.trim() !== "");
+    return parts.length ? parts.join("; ") : fallback;
   }
-  return String(detail);
+
+  if (typeof detail === "object") {
+    // A field-error map: {"email": ["This field is required."]}. Keep the
+    // sentences, discard the field keys — `String(detail)` used to render the
+    // whole thing as "[object Object]".
+    const parts = Object.values(detail as Record<string, unknown>)
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter((value): value is string => typeof value === "string")
+      .filter((value) => value.trim() !== "");
+    return parts.length ? parts.join("; ") : fallback;
+  }
+
+  return fallback;
 }
 
 /**
@@ -102,10 +157,10 @@ function resolveApiErrorMessage(
   statusText: string,
 ): string {
   const raw = normalizeApiErrorDetail(detail, statusText).trim();
-  if (raw && !isRawStatusText(raw, statusText)) return raw;
+  if (raw && !isRawStatusText(raw, statusText) && readsAsProse(raw)) return raw;
   return (
     STATUS_FALLBACK_MESSAGES[status] ??
-    "Something got stuck! Let's try again?"
+    "Something went wrong on my end. Mind trying again?"
   );
 }
 
@@ -120,14 +175,14 @@ async function requireAuthenticatedSession(): Promise<AuthInfo> {
     const refreshed = await refreshToken();
     if (!refreshed && isTokenExpired()) {
       redirectToLogin();
-      throw new ApiError(401, "Our session timed out - let me take you back to login.");
+      throw new ApiError(401, "Your session expired. Taking you back to sign in.");
     }
   }
 
   const auth = getAuth();
   if (!auth?.token) {
     redirectToLogin();
-    throw new ApiError(401, "You're signed out - let me take you back to login.");
+    throw new ApiError(401, "You're signed out. Taking you back to sign in.");
   }
   return auth;
 }
@@ -161,22 +216,29 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       // is reported and the page stays where it is.
       if (isTokenExpired()) {
         redirectToLogin();
-        throw new ApiError(401, "Our session timed out - let me take you back to login.");
+        throw new ApiError(401, "Your session expired. Taking you back to sign in.");
       }
       const denied = await res.json().catch(() => null);
+      const deniedRaw = denied?.detail ?? denied?.message;
+      const deniedMsg = normalizeApiErrorDetail(deniedRaw, "").trim();
       throw new ApiError(
         401,
-        normalizeApiErrorDetail(denied?.detail ?? denied?.message, "").trim() ||
-          "You don't have access to that. If you've just been added to a company, try picking it again from the company list.",
+        deniedMsg && readsAsProse(deniedMsg)
+          ? deniedMsg
+          : "You don't have access to that. If you've just been added to a company, try picking it again from the company list.",
+        typeof deniedRaw === "string" ? deniedRaw : JSON.stringify(deniedRaw ?? ""),
       );
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    const msg = resolveApiErrorMessage(
+    const rawDetail = body.detail ?? body.message;
+    const msg = resolveApiErrorMessage(res.status, rawDetail, res.statusText);
+    // `detail` keeps the server's own words for the shape-detectors above;
+    // `msg` is the scrubbed copy the user actually reads.
+    throw new ApiError(
       res.status,
-      body.detail ?? body.message,
-      res.statusText,
+      msg,
+      typeof rawDetail === "string" ? rawDetail : JSON.stringify(rawDetail ?? ""),
     );
-    throw new ApiError(res.status, msg);
   }
 
   if (res.status === 204) return undefined as T;
@@ -256,7 +318,7 @@ async function fetchAttachmentDownloadJson(path: string): Promise<{
   if (!res.ok) {
     if (res.status === 401) {
       redirectToLogin();
-      throw new ApiError(401, "Our session timed out - let me take you back to login.");
+      throw new ApiError(401, "Your session expired. Taking you back to sign in.");
     }
     return null;
   }
@@ -365,7 +427,7 @@ export async function fetchPaymentAttachmentPreview(
       }
       const bytes = await fetchBytesFromResolvedFileUrl(absolute);
       if (!bytes || bytes.size === 0) {
-        lastError = new ApiError(404, "That attachment came back empty. Let's try again?");
+        lastError = new ApiError(404, "That attachment came back empty. Mind trying again?");
         continue;
       }
       const t = (bytes.type || "").toLowerCase();
@@ -386,7 +448,7 @@ export async function fetchPaymentAttachmentPreview(
   }
 
   if (lastError instanceof Error) throw lastError;
-  throw new ApiError(404, "Hmm, that attachment didn't come through. Let's try again?");
+  throw new ApiError(404, "I couldn't open that attachment. Mind trying again?");
 }
 
 // ── Types ────────────────────────────────────────────────────────────

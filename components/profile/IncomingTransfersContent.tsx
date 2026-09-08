@@ -53,7 +53,7 @@ export function IncomingTransfersContent() {
       setError(
         err instanceof PortalError
           ? err.message
-          : "Hmm, that didn't come through. Let's give it another go?",
+          : "That didn't come through. Mind trying again?",
       );
     }
   }, []);
@@ -79,7 +79,7 @@ export function IncomingTransfersContent() {
         message:
           err instanceof PortalError
             ? err.message
-            : "That didn't go through. Let's try again?",
+            : "That didn't go through. Mind trying again?",
       });
     } finally {
       setBusy(null);

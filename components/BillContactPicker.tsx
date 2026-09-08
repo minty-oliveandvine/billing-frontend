@@ -127,7 +127,7 @@ export function BillContactPicker({
       showToast("Supplier created successfully!", "success");
     } catch (e) {
       setCreateError(
-        e instanceof ApiError ? e.message : "Hmm, that supplier didn't quite make it over to Xero. Let's try again?",
+        e instanceof ApiError ? e.message : "That supplier didn't quite make it over to Xero. Mind trying again?",
       );
     } finally {
       setCreating(false);

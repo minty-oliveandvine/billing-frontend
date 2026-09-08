@@ -312,7 +312,7 @@ function EditDialog({
       onSaved(methods);
     } catch (e) {
       setError(
-        e instanceof PortalError ? e.message : "That didn't save. Let's try again?",
+        e instanceof PortalError ? e.message : "That didn't save. Mind trying again?",
       );
       setBusy(false);
     }
@@ -449,7 +449,7 @@ function RemoveDialog({
       onRemoved(await removePaymentMethod(method.id));
     } catch (e) {
       setError(
-        e instanceof PortalError ? e.message : "That didn't remove. Let's try again?",
+        e instanceof PortalError ? e.message : "That didn't remove. Mind trying again?",
       );
       setBusy(false);
     }
@@ -648,7 +648,7 @@ export function PaymentMethodsPanel() {
         setError(
           err instanceof PortalError
             ? err.message
-            : "Your payment methods didn't come through. Let's try again?",
+            : "Your payment methods didn't come through. Mind trying again?",
         );
       })
       .finally(() => {
@@ -685,7 +685,7 @@ export function PaymentMethodsPanel() {
       applied(await setDefaultPaymentMethod(method.id));
     } catch (e) {
       setActionError(
-        e instanceof PortalError ? e.message : "That didn't change. Let's try again?",
+        e instanceof PortalError ? e.message : "That didn't change. Mind trying again?",
       );
       setBusyId(null);
     }

@@ -101,7 +101,7 @@ export function MyProfileContent({
       setProfile(me);
     } catch (e) {
       setProfile(null);
-      setError(e instanceof ApiError ? e.message : "Hmm, your profile didn't come through. Let's give it another go?");
+      setError(e instanceof ApiError ? e.message : "Your profile didn't come through. Mind trying again?");
     } finally {
       setLoading(false);
     }
@@ -180,7 +180,7 @@ export function MyProfileContent({
       window.setTimeout(() => setUpdateHint(false), 2500);
       return true;
     } catch (e) {
-      setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?");
+      setSaveError(e instanceof ApiError ? e.message : "That didn't quite save. Mind trying again?");
       return false;
     } finally {
       setSaving(false);
@@ -218,7 +218,7 @@ export function MyProfileContent({
       onAccountDeactivated?.();
     } catch (e) {
       setSignOutError(
-        e instanceof ApiError ? e.message : "That didn't go through. Let's give it another go?",
+        e instanceof ApiError ? e.message : "That didn't go through. Mind trying again?",
       );
     } finally {
       setSigningOut(false);

@@ -221,9 +221,9 @@ export class PortalError extends Error {
 
 /** Copy in the app's voice, keyed by what actually went wrong. */
 const MESSAGES: Record<number, string> = {
-  401: "Your session ran out while you were away. Let's sign you back in?",
-  403: "Hmm, I can't let you in there.",
-  500: "Something got stuck on my end! Let's try again?",
+  401: "Your session expired. Sign in again to keep going.",
+  403: "You don't have access to that.",
+  500: "Something went wrong on my end. Mind trying again?",
 };
 
 function mintyOrigin(): string {
@@ -289,7 +289,7 @@ async function portalGet<T>(
     res = await request(url, token, signal);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new PortalError(0, "I couldn't reach the server just now. Let's try again?");
+    throw new PortalError(0, "I couldn't reach the server just now. Mind trying again?");
   }
 
   // One retry behind a refresh: the token may have aged out between the check above and
@@ -305,7 +305,7 @@ async function portalGet<T>(
       res.status,
       body?.error && !/^[a-z_]+$/.test(body.error)
         ? body.error
-        : MESSAGES[res.status] ?? "Something got stuck on my end! Let's try again?",
+        : MESSAGES[res.status] ?? "Something went wrong on my end. Mind trying again?",
     );
   }
 
@@ -329,7 +329,7 @@ export async function fetchPayerSubscriptions(
     params.signal,
   );
   if (!data || !Array.isArray(data.entities)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+    throw new PortalError(502, "That came back in a shape I didn't expect. Mind trying again?");
   }
   return data;
 }
@@ -352,7 +352,7 @@ export async function fetchSubscriberOptions(
     signal,
   );
   if (!data?.entity || !Array.isArray(data.candidates)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+    throw new PortalError(502, "That came back in a shape I didn't expect. Mind trying again?");
   }
   return data;
 }
@@ -393,7 +393,7 @@ export async function inviteAdminToEntity(
   try {
     res = await send(token);
   } catch {
-    throw new PortalError(0, "I couldn't reach the server just now. Let's try again?");
+    throw new PortalError(0, "I couldn't reach the server just now. Mind trying again?");
   }
   if (res.status === 401 && (await refreshToken())) {
     const fresh = getAuth()?.token;
@@ -409,7 +409,7 @@ export async function inviteAdminToEntity(
       res.status,
       body?.error && !/^[a-z_]+$/.test(body.error)
         ? body.error
-        : MESSAGES[res.status] ?? "That invitation didn't send. Let's try again?",
+        : MESSAGES[res.status] ?? "I couldn't send that invitation. Mind trying again?",
     );
   }
   return body.message ?? "Invitation sent.";
@@ -549,7 +549,7 @@ async function portalPost<T>(path: string, body: unknown): Promise<T> {
   try {
     res = await send(token);
   } catch {
-    throw new PortalError(0, "I couldn't reach the server just now. Let's try again?");
+    throw new PortalError(0, "I couldn't reach the server just now. Mind trying again?");
   }
 
   if (res.status === 401 && (await refreshToken())) {
@@ -566,7 +566,7 @@ async function portalPost<T>(path: string, body: unknown): Promise<T> {
       res.status,
       payload?.error && !/^[a-z_]+$/.test(payload.error)
         ? payload.error
-        : MESSAGES[res.status] ?? "Something got stuck on my end! Let's try again?",
+        : MESSAGES[res.status] ?? "Something went wrong on my end. Mind trying again?",
     );
   }
   return payload as T;
@@ -582,7 +582,7 @@ export async function fetchPaymentMethods(
     signal,
   );
   if (!data || !Array.isArray(data.methods)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+    throw new PortalError(502, "That came back in a shape I didn't expect. Mind trying again?");
   }
   return data;
 }
@@ -600,7 +600,7 @@ export async function startCardSetup(): Promise<SetupIntentHandle> {
     {},
   );
   if (!data?.client_secret || !data?.publishable_key) {
-    throw new PortalError(502, "The card form didn't open. Let's try again?");
+    throw new PortalError(502, "I couldn't open the card form. Mind trying again?");
   }
   return data;
 }
@@ -649,7 +649,7 @@ export async function fetchEntityPaymentMethod(
     signal,
   );
   if (!data || !Array.isArray(data.methods)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+    throw new PortalError(502, "That came back in a shape I didn't expect. Mind trying again?");
   }
   return data;
 }
@@ -799,7 +799,7 @@ export async function fetchPayerInvoices(
     params.signal,
   );
   if (!data || !Array.isArray(data.invoices)) {
-    throw new PortalError(502, "That came back in a shape I didn't expect. Let's try again?");
+    throw new PortalError(502, "That came back in a shape I didn't expect. Mind trying again?");
   }
   return data;
 }

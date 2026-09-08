@@ -396,7 +396,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       .catch((e) => {
         if (!cancelled) {
           setBill(null);
-          setLoadError(e instanceof ApiError ? e.message : "Hmm, this payment didn't come through. Let's try again?");
+          setLoadError(e instanceof ApiError ? e.message : "This payment didn't come through. Mind trying again?");
           attachmentUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
           attachmentUrlsRef.current = [];
           setAttachments([]);
@@ -725,7 +725,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
             await loadAttachmentsFromIndexedDb();
             // Details saved; only the attachment cache write failed.
             showToast(
-              "I saved your payment details, but the attachments didn't quite update. Let's try editing them again?",
+              "I saved your payment details, but the attachments didn't update. Mind editing them again?",
               "warning",
             );
           }
@@ -756,7 +756,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           setBillNoError(e.message);
         } else {
           showToast(
-            e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?",
+            e instanceof ApiError ? e.message : "That didn't quite save. Mind trying again?",
             "error",
           );
         }
@@ -848,7 +848,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "This payment's being a bit stubborn - let's try again?",
+        e instanceof ApiError ? e.message : "This payment's being a bit stubborn. Mind trying again?",
         "error",
       );
     } finally {
@@ -934,7 +934,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           await loadAttachmentsFromIndexedDb();
           // Submit succeeded; only the attachment cache write failed.
           showToast(
-            "Your payment went through, but the attachments didn't quite update. Let's try editing them again?",
+            "Your payment went through, but the attachments didn't update. Mind editing them again?",
             "warning",
           );
         }
@@ -966,7 +966,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
         setSubmitAttemptFieldErrors(null);
       } else {
         showToast(
-          e instanceof ApiError ? e.message : "This payment didn't quite make it through. Let's give it another go?",
+          e instanceof ApiError ? e.message : "This payment didn't quite make it through. Mind trying again?",
           "error",
         );
       }
@@ -1007,7 +1007,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           ? XERO_RECONNECT_MESSAGE
           : e instanceof ApiError
             ? e.message
-            : "Hmm, this payment didn't quite make it over to Xero. Let's try again?",
+            : "This payment didn't quite make it over to Xero. Mind trying again?",
         "error",
       );
     } finally {
@@ -1025,7 +1025,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       bumpAudit();
     } catch (e) {
       showToast(
-        e instanceof ApiError ? e.message : "That didn't quite work - let's try sending it back again?",
+        e instanceof ApiError ? e.message : "I couldn't send that back. Mind trying again?",
         "error",
       );
     } finally {
@@ -1448,7 +1448,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
                 <button
                   type="button"
                   disabled={!isElevated || isViewOnly || isEditing}
-                  title={isViewOnly ? "Hmm, I can't let you in there - you've got view-only access." : undefined}
+                  title={isViewOnly ? "Hmm, I can't let you in there. You have view-only access." : undefined}
                   onClick={() => {
                     if (!isViewOnly) {
                       setRecordPaymentReadOnly(false);

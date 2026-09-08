@@ -169,7 +169,7 @@ export function ManageSubscriptionsContent() {
         setError(
           err instanceof PortalError
             ? err.message
-            : "Hmm, your subscriptions didn't come through. Let's give it another go?",
+            : "Your subscriptions didn't come through. Mind trying again?",
         );
       })
       .finally(() => {

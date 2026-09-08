@@ -220,7 +220,7 @@ export function EntityBillingAccountDialog({
       .catch((err) => {
         if (controller.signal.aborted) return;
         setError(
-          err instanceof PortalError ? err.message : "That didn't load. Let's try again?",
+          err instanceof PortalError ? err.message : "That didn't load. Mind trying again?",
         );
       });
     return () => controller.abort();
@@ -237,7 +237,7 @@ export function EntityBillingAccountDialog({
       setExpanded(false);
     } catch (err) {
       setError(
-        err instanceof PortalError ? err.message : "That didn't save. Let's try again?",
+        err instanceof PortalError ? err.message : "That didn't save. Mind trying again?",
       );
     } finally {
       setSaving(false);

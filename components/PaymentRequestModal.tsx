@@ -450,7 +450,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "That draft didn't quite save. Let's give it another go?",
+          err instanceof ApiError ? err.message : "That draft didn't quite save. Mind trying again?",
         );
       }
     } finally {
@@ -535,7 +535,7 @@ export function PaymentRequestModal({
         setFormError(err.message);
       } else {
         setFormError(
-          err instanceof Error ? err.message : "That payment didn't quite go through. Let's try again?",
+          err instanceof ApiError ? err.message : "That payment didn't quite go through. Mind trying again?",
         );
       }
     } finally {

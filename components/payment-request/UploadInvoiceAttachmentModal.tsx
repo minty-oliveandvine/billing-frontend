@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState } from "react";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
+import { ApiError } from "@/lib/api";
 import { PdfJsCanvasPreview } from "@/components/PdfJsCanvasPreview";
 import { formatFileSize, isImageFile, isPdfFile, isHtmlFile, isAllowedAttachment, ATTACHMENT_ACCEPT } from "@/lib/fileAttachmentPreview";
 
@@ -121,7 +122,7 @@ export function UploadInvoiceAttachmentModal({ open, onClose, onUpload }: Upload
       await Promise.resolve(onUpload(uploadedFiles.map((x) => x.file)));
       onClose();
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "That upload didn't quite go through. Let's try again?");
+      setUploadError(e instanceof ApiError ? e.message : "That upload didn't quite go through. Mind trying again?");
     } finally {
       setUploading(false);
     }

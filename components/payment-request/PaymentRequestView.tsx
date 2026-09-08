@@ -26,6 +26,7 @@ import {
   fetchBill,
   fetchBills,
   isXeroAuthError,
+  ApiError,
   publishBill,
   returnBill,
   XERO_RECONNECT_MESSAGE,
@@ -432,7 +433,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setDatasetComplete(true);
     } catch (err) {
       if (seq === loadSeqRef.current) {
-        setLoadError(err instanceof Error ? err.message : "Hmm, your payments didn't come through. Let's give it another go?");
+        setLoadError(err instanceof ApiError ? err.message : "Your payments didn't come through. Mind trying again?");
       }
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
@@ -702,7 +703,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setBulkDeleteModalOpen(false);
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Those payments are being a bit stubborn - let's try again?",
+        err instanceof ApiError ? err.message : "Those payments are being a bit stubborn. Mind trying again?",
         "error",
       );
     } finally {
@@ -718,7 +719,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
       setSelectedIds(new Set());
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Those payments didn't quite make it over. Let's try again?",
+        err instanceof ApiError ? err.message : "Those payments didn't quite make it over. Mind trying again?",
         "error",
       );
     }
@@ -908,7 +909,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     await loadBills();
                   } catch (err) {
                     showToast(
-                      err instanceof Error ? err.message : "This payment's being a bit stubborn - let's try again?",
+                      err instanceof ApiError ? err.message : "This payment's being a bit stubborn. Mind trying again?",
                       "error",
                     );
                     await loadBills();
@@ -921,7 +922,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     await loadBills();
                   } catch (err) {
                     showToast(
-                      err instanceof Error ? err.message : "This payment didn't quite make it over. Let's try again?",
+                      err instanceof ApiError ? err.message : "This payment didn't quite make it over. Mind trying again?",
                       "error",
                     );
                   }
@@ -940,9 +941,9 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
                     showToast(
                       isXeroAuthError(err)
                         ? XERO_RECONNECT_MESSAGE
-                        : err instanceof Error
+                        : err instanceof ApiError
                           ? err.message
-                          : "This payment didn't quite make it over. Let's try again?",
+                          : "This payment didn't quite make it over. Mind trying again?",
                       "error",
                     );
                   }
@@ -1012,7 +1013,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
             await loadBills();
           } catch (err) {
             showToast(
-              err instanceof Error ? err.message : "That didn't quite work - let's give it another go?",
+              err instanceof ApiError ? err.message : "That didn't quite work. Mind trying again?",
               "error",
             );
           } finally {

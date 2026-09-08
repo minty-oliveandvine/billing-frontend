@@ -132,7 +132,7 @@ export function EasyViewDraftDetailBody({
         });
       })
       .catch((e) => {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Hmm, this payment didn't come through. Let's try again?");
+        if (!cancelled) setLoadErr(e instanceof ApiError ? e.message : "This payment didn't come through. Mind trying again?");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -226,7 +226,7 @@ export function EasyViewDraftDetailBody({
         setBillNoError(e.message);
       } else {
         showToast(
-          e instanceof ApiError ? e.message : "That didn't quite save. Let's give it another go?",
+          e instanceof ApiError ? e.message : "That didn't quite save. Mind trying again?",
           "error",
         );
       }
@@ -330,7 +330,7 @@ export function EasyViewReadonlyBillDetailBody({
       })
       .catch((e) => {
         if (cancelled) return;
-        setLoadErr(e instanceof ApiError ? e.message : "Hmm, this payment didn't come through. Let's try again?");
+        setLoadErr(e instanceof ApiError ? e.message : "This payment didn't come through. Mind trying again?");
         setLoading(false);
       });
     return () => {
@@ -385,7 +385,7 @@ export function EasyViewReadonlyBillDetailBody({
           ? XERO_RECONNECT_MESSAGE
           : e instanceof ApiError
             ? e.message
-            : "Hmm, this payment didn't quite make it over to Xero. Let's try again?",
+            : "This payment didn't quite make it over to Xero. Mind trying again?",
         "error",
       );
     } finally {

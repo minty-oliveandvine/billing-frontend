@@ -398,7 +398,7 @@ export function AddPaymentMethodModal({
         setError(
           e instanceof PortalError
             ? e.message
-            : "The card form didn't open. Let's try again?",
+            : "The card form didn't open. Mind trying again?",
         );
       });
 

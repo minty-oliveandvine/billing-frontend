@@ -112,7 +112,7 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
         setError(
           err instanceof PortalError
             ? err.message
-            : "Hmm, that didn't come through. Let's give it another go?",
+            : "That didn't come through. Mind trying again?",
         );
       } finally {
         if (!signal?.aborted) setLoading(false);
@@ -134,7 +134,7 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
       setSendError(
         e instanceof PortalError
           ? e.message
-          : "That request didn't send. Let's try again?",
+          : "That request didn't send. Mind trying again?",
       );
     } finally {
       setSending(false);
@@ -150,7 +150,7 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
       await load();
     } catch (e) {
       setSendError(
-        e instanceof PortalError ? e.message : "That didn't go through. Let's try again?",
+        e instanceof PortalError ? e.message : "That didn't go through. Mind trying again?",
       );
     } finally {
       setSending(false);
@@ -170,7 +170,7 @@ export function ChangeSubscriberContent({ entityId }: { entityId?: string }) {
       setInviteError(
         e instanceof PortalError
           ? e.message
-          : "That invitation didn't send. Let's try again?",
+          : "That invitation didn't send. Mind trying again?",
       );
     } finally {
       setInviting(false);

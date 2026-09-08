@@ -46,7 +46,7 @@ function describePdfError(err: unknown): string {
       return "This PDF's locked, so I couldn't open it for preview.";
     case "MissingPDFException":
     case "UnexpectedResponseException":
-      return "This PDF didn't come through - check your connection and let's give it another go?";
+      return "That PDF didn't come through. Check your connection, then mind trying again?";
     default:
       return "This PDF can't be previewed here.";
   }

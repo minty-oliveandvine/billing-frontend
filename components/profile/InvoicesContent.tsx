@@ -86,7 +86,7 @@ export function InvoicesContent({ initialEntityId }: { initialEntityId?: string 
         setError(
           err instanceof PortalError
             ? err.message
-            : "Hmm, your invoices didn't come through. Let's give it another go?",
+            : "Your invoices didn't come through. Mind trying again?",
         );
       })
       .finally(() => {

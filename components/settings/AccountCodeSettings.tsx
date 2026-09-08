@@ -10,10 +10,12 @@ const CHECKBOX_CLASS = "checkbox-secondary-white-tick h-4 w-4 shrink-0 rounded b
 export type AccountCodeRow = { id: string; label: string };
 
 export function AccountCodeSettings() {
-  const { isViewOnly, role } = useUserRole();
-  const normalizedRole = (role ?? "").trim().toLowerCase();
-  const isReadOnlyRole = normalizedRole === "cashier" || normalizedRole === "shop_manager";
-  const readOnly = isViewOnly || isReadOnlyRole;
+  // Allowlist, not denylist. `isElevated` is {accountant, admin, super_admin}
+  // minus view-only — the same set billing-backend enforces on these writes via
+  // check_edit_bill_settings. A denylist of cashier/shop_manager let entity_base
+  // through to an editable page whose every Save 403'd.
+  const { isViewOnly, isElevated } = useUserRole();
+  const readOnly = !isElevated;
   const [rows, setRows] = useState<AccountCodeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -118,6 +120,26 @@ export function AccountCodeSettings() {
 
   return (
     <div className="w-full pb-8 pt-2 sm:pt-3">
+      {/* Two different reasons the controls are dead, and they need different
+          sentences — same split the Module & Subscription section makes in Minty.
+          Held until `loading` clears: the role arrives from the cookie one frame
+          late, so an accountant would otherwise see this flash at them. */}
+      {!loading && readOnly ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-3 flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+        >
+          <span className="material-symbols-outlined shrink-0 text-[18px] leading-none text-gray-400" aria-hidden>
+            visibility
+          </span>
+          <span>
+            {isViewOnly
+              ? "Read-only access — you are not a member of this entity."
+              : "You have view-only access to these settings. Ask an Accountant or Admin to make changes."}
+          </span>
+        </div>
+      ) : null}
       <div className={`overflow-hidden rounded-lg border border-gray-200 ${readOnly ? "bg-gray-100" : "bg-white"} shadow-sm`}>
         <button type="button" onClick={() => setExpanded((e) => !e)} className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left sm:px-5" aria-expanded={expanded}>
           <div className="min-w-0 flex-1">
@@ -220,7 +242,7 @@ export function AccountCodeSettings() {
 
       {expanded ? (
         <div className="mt-3 flex w-full flex-col gap-3">
-          <button type="button" onClick={handleSave} disabled={saving || readOnly} title={isViewOnly ? "Hmm, I can't let you in there - you've got view-only access." : isReadOnlyRole ? "That task is reserved for our Accountants and Admins." : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
+          <button type="button" onClick={handleSave} disabled={saving || readOnly} title={loading ? undefined : isViewOnly ? "Hmm, I can't let you in there - you've got view-only access." : readOnly ? "That task is reserved for our Accountants and Admins." : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>

@@ -251,6 +251,30 @@ function ModuleSelectionContent() {
     navigateToModule2();
   };
 
+  // Exactly one module entitled = nothing to choose between, so this page is a
+  // dead click that asks the user to confirm the only option they have. Go
+  // straight into that module instead. Minty's /entity/<id>/modules already
+  // skips the handoff to this page in that case; this covers the paths that
+  // arrive here anyway — a refresh after the mount effect stripped the URL
+  // params, a bookmark, or a stale link.
+  //
+  // Gated on entitlementsReady so the decision is made against the
+  // DB-authoritative answer, never the JWT claims alone: routing on a stale
+  // cookie claim would fling the user into a module the DB is about to hide.
+  // Both-off is left alone deliberately — there is nowhere to send them.
+  const soloModule =
+    hasMounted && entitlementsReady && billingEnabled !== pettyCashEnabled;
+  const autoRoutedRef = useRef(false);
+  useEffect(() => {
+    if (!soloModule || autoRoutedRef.current) return;
+    autoRoutedRef.current = true;
+    if (billingEnabled) {
+      navigateToModule2();
+    } else {
+      navigateToModule1();
+    }
+  }, [soloModule, billingEnabled]);
+
   return (
     <div className="flex min-h-dvh min-h-screen flex-col overflow-x-hidden bg-white">
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 py-6 sm:gap-6 sm:p-8 md:gap-8">
@@ -267,22 +291,26 @@ function ModuleSelectionContent() {
           </div>
         )}
 
-        <h1 className="text-center text-lg font-bold text-black sm:text-xl md:text-2xl">
-          Choose Module Type
-        </h1>
-        <div className="module-buttons-group mx-auto flex w-full max-w-[260px] flex-col items-center justify-center gap-4 sm:max-w-[400px] sm:flex-row sm:flex-nowrap sm:gap-6 md:max-w-[820px]">
-          {hasMounted && entitlementsReady && pettyCashEnabled && (
-            <ModuleButton iconSrc="/pettycash-icon.webp" iconAlt="Petty cash" imageScale={0.8} hoverBackImage="/minty-l.webp" onClick={handleClick} onTouchEnd={handleTouchEnd} />
-          )}
-          {hasMounted && entitlementsReady && billingEnabled && (
-            <ModuleButton iconSrc="/payment-icon.webp" iconAlt="Payment request" imageScale={1.0} hoverBackImage="/minty-r.webp" hoverBackImagePosition="top-right" onClick={handlePaymentClick} onTouchEnd={handlePaymentTouchEnd} />
-          )}
-        </div>
+        {!soloModule && (
+          <>
+          <h1 className="text-center text-lg font-bold text-black sm:text-xl md:text-2xl">
+            Choose Module Type
+          </h1>
+          <div className="module-buttons-group mx-auto flex w-full max-w-[260px] flex-col items-center justify-center gap-4 sm:max-w-[400px] sm:flex-row sm:flex-nowrap sm:gap-6 md:max-w-[820px]">
+            {hasMounted && entitlementsReady && pettyCashEnabled && (
+              <ModuleButton iconSrc="/pettycash-icon.webp" iconAlt="Petty cash" imageScale={0.8} hoverBackImage="/minty-l.webp" onClick={handleClick} onTouchEnd={handleTouchEnd} />
+            )}
+            {hasMounted && entitlementsReady && billingEnabled && (
+              <ModuleButton iconSrc="/payment-icon.webp" iconAlt="Payment request" imageScale={1.0} hoverBackImage="/minty-r.webp" hoverBackImagePosition="top-right" onClick={handlePaymentClick} onTouchEnd={handlePaymentTouchEnd} />
+            )}
+          </div>
+          </>
+        )}
       </main>
 
       <div className={`pointer-events-none fixed bottom-0 left-1/2 z-[100] block h-[260px] w-[280px] max-w-[85vw] -translate-x-1/2 transition-transform duration-300 ease-out md:hidden ${showMinty ? "translate-y-[25%]" : "translate-y-full"}`} aria-hidden><Image src="/minty.webp" alt="" fill className="object-contain object-bottom" sizes="280px" /></div>
 
-      {isNavigating ? (
+      {isNavigating || soloModule ? (
         <div className="fixed inset-0 z-[200] flex flex-col bg-white">
           <LoadingScreen embedded>
             <div className={`pointer-events-none relative h-[260px] w-[280px] max-w-[85vw] shrink-0 self-center transition-transform duration-300 ease-out md:hidden ${loadingMintyPeek ? "translate-y-[25%]" : "translate-y-full"}`} aria-hidden><Image src="/minty.webp" alt="" fill className="object-contain object-bottom" sizes="280px" /></div>

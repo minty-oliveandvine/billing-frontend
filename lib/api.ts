@@ -468,7 +468,7 @@ export type BillListItem = {
   xero_account_code: string;
   published: string;
   created_at: string;
-  uploaded_by: string;
+  uploaded_by: string | null;
   paid_at: string | null;
 };
 
@@ -800,7 +800,7 @@ export type PaymentItem = {
   reference_no: string;
   note: string;
   xero_payment_id: string;
-  created_by: string;
+  created_by: string | null;
   /** Resolved full name of the user who recorded the payment; populated by the list endpoint. */
   created_by_name?: string;
   created_at: string;

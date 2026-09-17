@@ -114,7 +114,7 @@ const STATUS_LABEL_TO_API: Record<string, string> = {
   "Payment Requested": "submitted",
   "Paid": "paid",
   "Partially Paid": "partially_paid",
-  "Voided": "voided",
+  "Voided": "void",
   "Returned": "returned",
 };
 
@@ -234,7 +234,7 @@ export function PaymentRequestView({ easyView }: PaymentRequestViewProps) {
     const showVoided = statusFilters.includes("Voided");
     let result = showVoided ? enrichedBills : enrichedBills.filter((r) => r.status !== "Voided");
     if (xeroStatus === "published") result = result.filter((r) => r.xeroActive === true);
-    else if (xeroStatus === "not_published") result = result.filter((r) => r.xeroActive !== true);
+    else if (xeroStatus === "draft") result = result.filter((r) => r.xeroActive !== true);
     if (statusFilters.length > 0) result = result.filter((r) => statusFilters.some((s) => s === r.status));
     if (debouncedSearch) result = result.filter((r) => rowMatchesSearch(r, debouncedSearch, searchMode));
     // Dates are matched here rather than server-side so the comparison uses the same

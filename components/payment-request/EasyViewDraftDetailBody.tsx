@@ -248,7 +248,7 @@ export function EasyViewDraftDetailBody({
   if (!bill || !detail) return null;
 
   const detailDisabled =
-    isViewOnly || !isElevated || (bill.status ?? "").trim().toLowerCase().replace(/-/g, "_") === "voided";
+    isViewOnly || !isElevated || (bill.status ?? "").trim().toLowerCase().replace(/-/g, "_") === "void";
 
   if (isEditing && draft) {
     return (
@@ -345,19 +345,19 @@ export function EasyViewReadonlyBillDetailBody({
     [fullBill?.status],
   );
 
-  const publishStatus = useMemo((): "not_published" | "published" | "failed" => {
+  const publishStatus = useMemo((): "draft" | "published" | "failed" => {
     const pub = (fullBill?.published ?? "").trim();
     if (pub === "published" || billStatusNorm === "authorised" || billStatusNorm === "authorized") {
       return "published";
     }
     if (pub === "failed") return "failed";
-    return "not_published";
+    return "draft";
   }, [fullBill?.published, billStatusNorm]);
 
   const voidDisabled = useMemo(() => {
     if (!fullBill || isPublishing || voidBillPending) return true;
     if (isViewOnly) return true;
-    if (billStatusNorm === "voided") return true;
+    if (billStatusNorm === "void") return true;
     if ((billStatusNorm === "paid" || billStatusNorm === "authorised") && !isElevated) return true;
     if (billStatusNorm === "returned" && !isElevated) return true;
     return false;
@@ -366,7 +366,7 @@ export function EasyViewReadonlyBillDetailBody({
   const publishDisabled = useMemo(() => {
     if (!fullBill || isPublishing || voidBillPending) return true;
     if (isViewOnly) return true;
-    if (billStatusNorm === "voided") return true;
+    if (billStatusNorm === "void") return true;
     if (!isElevated) return true;
     return false;
   }, [fullBill, isPublishing, voidBillPending, isViewOnly, billStatusNorm, isElevated]);

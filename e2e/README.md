@@ -37,9 +37,7 @@ Run the seed in the Minty repo before every run. Never commit any of these value
 
 ## Findings the suite records
 
-- **F5** `Minty/blueprints/subscription/services/portal.py` `build_payer_subscriptions`: a payer with
-  no subscribed entities gets a 500 from `/api/me/subscriptions` (`paid_through` referenced
-  outside the loop that assigns it); the page shows "Try again". `test.fail()` until phase C7.
+- **F5** — FIXED in phase C7 (2026-09-17): `/api/me/subscriptions` answers 200 for a payer with no companies; the spec that recorded it passes.
 
 ## Not covered here
 

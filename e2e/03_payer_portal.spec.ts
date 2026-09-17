@@ -36,11 +36,8 @@ test.describe('payer portal', () => {
   });
 
   test('manage subscriptions loads for a payer with no subscriptions', async ({ page }) => {
-    test.fail(true,
-      'FINDING F5 (blueprints/subscription/services/portal.py build_payer_subscriptions): `paid_through` is '
-      + 'assigned inside the per-entity loop and read after it, so a payer with no subscribed entities gets '
-      + 'UnboundLocalError -> /api/me/subscriptions answers 500 and the page shows "Try again". Fix in phase C7; '
-      + 'this test then starts passing.');
+    // F5 (fixed in C7): the summary used to read a per-company `paid_through` from a loop that
+    // never ran for a payer with no companies, so /api/me/subscriptions answered 500.
     await page.goto('/profile/subscriptions');
     await expect(page.getByRole('heading', { name: /manage subscriptions/i, level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: /try again/i })).toHaveCount(0);

@@ -15,7 +15,7 @@ type BillActionBarProps = {
   onPublishToXero?: () => void;
   deleteDisabled?: boolean;
   publishDisabled?: boolean;
-  publishStatus?: "not_published" | "published" | "failed";
+  publishStatus?: "draft" | "published" | "failed";
   publishPending?: boolean;
   draftSubmit?: {
     show: boolean;

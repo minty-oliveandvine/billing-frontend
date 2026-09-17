@@ -20,7 +20,7 @@ export const DEFAULT_FILTER_DATE_TYPE = "Invoice Date";
 const FILTER_XERO_STATUS_OPTIONS = [
   { value: "", label: "All" },
   { value: "published", label: "Published" },
-  { value: "not_published", label: "Not published" },
+  { value: "draft", label: "Not published" },
 ] as const;
 
 /** Filter panel field labels — sentence case (not all-caps). */

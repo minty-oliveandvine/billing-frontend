@@ -17,7 +17,7 @@
 /.next/
 /out/
 
-# pdf.js assets copied from node_modules by scripts/copy-pdfjs-assets.mjs
+# pdf.js assets copied from node_modules/pdfjs-dist by next.config.ts on every start
 /public/pdfjs/
 
 # production
@@ -35,6 +35,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but do commit example env files so new devs have safe local defaults.
+!.env.example
+!**/.env.example
 
 # vercel
 .vercel
@@ -43,6 +46,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Playwright
-test-results/
-playwright-report/
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

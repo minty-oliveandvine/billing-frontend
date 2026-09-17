@@ -9,7 +9,7 @@ Real browser, stack already up (Next :3000 `npm run dev`, billing-backend :8000,
 Postgres). Nothing is started here. Specs skip with a reason when a service or the credentials
 are missing.
 
-Why this exists: this app had no tests of any kind, and phase C8 of `docs/modernisation_plan.md`
+Why this exists: this app had no tests of any kind, and phase C8 of `docs/modernisation/modernisation_plan.md`
 (in the Minty repo) changes what it renders — `bill_status` (`voided → void`, dead members gone),
 `publish_state` (`not_published → draft`) and the bill payload. The status tabs, the labels on
 the action bar and the payer portal are pinned here first.

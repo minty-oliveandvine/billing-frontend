@@ -19,7 +19,8 @@ test.describe('handoff and list', () => {
   test('the handoff stores the token and opens the payment-request list for the entity', async ({ page }) => {
     const creds = requireCredentials();
     await handoff(page, creds, '/');
-    await expect(page).toHaveURL(/localhost:3000\/?$/);
+    // the app's root, whichever host the suite runs against (E2E_BASE_URL)
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/?$/);
     await expect(page.getByText(creds.entityName)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add Payment' })).toBeVisible();
     const cookies = await page.context().cookies();

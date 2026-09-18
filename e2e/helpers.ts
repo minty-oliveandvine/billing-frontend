@@ -84,3 +84,25 @@ export function subscriptionsDark(): boolean {
   const raw = (process.env.E2E_SUBSCRIPTIONS ?? '1').trim().toLowerCase();
   return raw === '0' || raw === 'false' || raw === 'off';
 }
+
+/**
+ * The e2e shop is connected to a real Xero organisation (a Demo Company, linked by hand) when
+ * ``E2E_XERO=1``: 04_xero_publish runs, and the supplier is one of the organisation's real
+ * contacts rather than the seed's placeholder (scripts/e2e_seed.py in Minty leaves a connected
+ * shop's contacts alone). Override either name with its own variable.
+ */
+export function xeroLive(): boolean {
+  return (process.env.E2E_XERO ?? '').trim() === '1';
+}
+
+export function fixtures() {
+  const live = xeroLive();
+  const env = (name: string, dflt: string) => (process.env[name] ?? '').trim() || dflt;
+  return {
+    /** typed into the supplier search, and the option clicked */
+    supplierQuery: env('E2E_SUPPLIER_QUERY', live ? 'ABC' : 'E2E Stationery'),
+    supplierName: env('E2E_SUPPLIER', live ? 'ABC Furniture' : 'E2E Stationery Supplier'),
+    /** an expense account code the entity's bill account list carries (429 General Expenses in both) */
+    accountCode: env('E2E_BILL_ACCOUNT_CODE', '429'),
+  };
+}

@@ -2,10 +2,11 @@
 // The words asserted here ("Draft", "Payment Requested", the status tabs, the action labels)
 // are what phase C8 must keep while bill_status/publish_state change underneath.
 import { expect, test, type Page } from '@playwright/test';
-import { handoff, moneyRegex, requireCredentials, requireStack } from './helpers';
+import { fixtures, handoff, moneyRegex, requireCredentials, requireStack } from './helpers';
 
 const AMOUNT = 120.5;
 const DESCRIPTION = `E2E printer paper ${Date.now()}`;
+const FX = fixtures();
 
 async function openAddPayment(page: Page) {
   await page.getByRole('button', { name: 'Add Payment' }).click();
@@ -20,12 +21,12 @@ async function fillPayment(page: Page, dlg: ReturnType<Page['getByRole']>) {
   // supplier: a searchable input over the entity's synced contacts
   const supplier = dlg.getByRole('textbox', { name: /supplier/i });
   await supplier.click();
-  await supplier.pressSequentially('E2E Stationery');
-  await page.getByRole('option', { name: 'E2E Stationery Supplier' }).click();
+  await supplier.pressSequentially(FX.supplierQuery);
+  await page.getByRole('option', { name: FX.supplierName, exact: true }).click();
   // account code: a combobox over the entity's bill account codes
   const account = dlg.getByRole('combobox', { name: /account code/i });
   await account.click();
-  await page.getByRole('option', { name: /429/ }).first().click();
+  await page.getByRole('option', { name: new RegExp(FX.accountCode) }).first().click();
 }
 
 test.describe.serial('payment request lifecycle', () => {
@@ -41,7 +42,7 @@ test.describe.serial('payment request lifecycle', () => {
     await expect(dlg).toBeHidden();
     await page.getByRole('tab', { name: 'Draft' }).click();
     // each request is a link: "<supplier> <date> ... HKD 120.50 (Inv total HKD 120.50) Draft"
-    const row = page.getByRole('link', { name: /E2E Stationery Supplier/ }).first();
+    const row = page.getByRole('link', { name: new RegExp(FX.supplierName) }).first();
     await expect(row).toBeVisible();
     await expect(row).toContainText(moneyRegex(AMOUNT));
     await expect(row).toContainText(/draft/i);
@@ -67,12 +68,12 @@ test.describe.serial('payment request lifecycle', () => {
 
   test('the draft opens on its detail page with the request and its actions', async ({ page }) => {
     await page.getByRole('tab', { name: 'Draft' }).click();
-    await page.getByRole('link', { name: /E2E Stationery Supplier/ }).first().click();
+    await page.getByRole('link', { name: new RegExp(FX.supplierName) }).first().click();
     await expect(page).toHaveURL(/\/payment-request\/[0-9a-f-]{36}/);
     const body = page.locator('body');
-    await expect(body).toContainText('E2E Stationery Supplier');
+    await expect(body).toContainText(FX.supplierName);
     await expect(body).toContainText(moneyRegex(AMOUNT));
-    await expect(body).toContainText(/429/);
+    await expect(body).toContainText(new RegExp(FX.accountCode));
     await expect(body).toContainText(/draft/i);
     // an admin can still edit or delete a draft
     await expect(page.getByRole('button', { name: /edit|delete|submit/i }).first()).toBeVisible();

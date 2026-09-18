@@ -1118,14 +1118,14 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
       (billDisplayStatus === "Returned" && !isElevated),
     [loadingBill, bill, isDeleting, isPublishing, isViewOnly, billDisplayStatus, isElevated],
   );
-  const actionOverflowTriggerDisabled = loadingBill || !bill || bill?.status === "voided";
+  const actionOverflowTriggerDisabled = loadingBill || !bill || bill?.status === "void";
 
   const detailToolbarActionsDisabled = useMemo(
     () =>
       loadingBill ||
       !bill ||
       isViewOnly ||
-      bill.status === "voided" ||
+      bill.status === "void" ||
       ((bill.status === "paid" || bill.status === "authorised") && !isElevated),
     [loadingBill, bill, isViewOnly, isElevated],
   );
@@ -1242,9 +1242,9 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
           <BillActionBar
             onDeleteBill={handleRequestDeleteBill}
             onPublishToXero={handlePublishToXero}
-            deleteDisabled={loadingBill || !bill || isDeleting || isPublishing || isViewOnly || bill?.status === "voided" || ((bill?.status === "paid" || bill?.status === "authorised") && !isElevated)}
-            publishDisabled={loadingBill || !bill || isViewOnly || bill?.status === "voided" || !isElevated}
-            publishStatus={(bill?.published as "not_published" | "published" | "failed") ?? "not_published"}
+            deleteDisabled={loadingBill || !bill || isDeleting || isPublishing || isViewOnly || bill?.status === "void" || ((bill?.status === "paid" || bill?.status === "authorised") && !isElevated)}
+            publishDisabled={loadingBill || !bill || isViewOnly || bill?.status === "void" || !isElevated}
+            publishStatus={(bill?.published as "draft" | "published" | "failed") ?? "draft"}
             publishPending={isPublishing}
             showVoidBill={false}
             endRowPrefix={
@@ -1310,7 +1310,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
               isEditing={isEditing}
               isSaving={isSaving}
               unpaidAmount={unpaidAmountDisplay}
-              disabled={!bill || bill?.status === "voided" || ((bill?.status === "paid" || bill?.status === "authorised") && !isElevated)}
+              disabled={!bill || bill?.status === "void" || ((bill?.status === "paid" || bill?.status === "authorised") && !isElevated)}
               billNoError={isEditing ? billNoError : null}
               accountCodeError={
                 isEditing ? (accountCodeError ?? submitAttemptFieldErrors?.accountCode ?? null) : null
@@ -1403,7 +1403,7 @@ export function PaymentRequestDetailBody({ onBillUpdated }: PaymentRequestDetail
                   pending={isSubmittingDraft}
                 />
               </div>
-            ) : bill?.status === "voided" ? (
+            ) : bill?.status === "void" ? (
               <div
                 className={isEditing ? "invisible pointer-events-none sm:self-start" : "sm:self-start"}
                 aria-hidden={isEditing || undefined}

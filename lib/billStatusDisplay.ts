@@ -6,7 +6,7 @@ export function billStatusToDisplayLabel(status: string): string {
     submitted: "Payment Requested",
     paid: "Paid",
     partially_paid: "Partially Paid",
-    voided: "Voided",
+    void: "Voided",
     returned: "Returned",
   };
   if (map[k]) return map[k];

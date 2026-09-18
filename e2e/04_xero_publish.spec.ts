@@ -68,8 +68,9 @@ test.describe('publish to Xero', () => {
     const busy = page.getByRole('status').filter({ hasText: /publishing/i });
     await expect(busy).toBeVisible();
     await expect(busy).toBeHidden({ timeout: 150_000 });
-    // a failure arrives as an error toast that says why; surface it instead of a bare timeout below
-    const errorToast = page.getByRole('alert');
+    // a failure arrives as an error toast that says why; surface it instead of a bare timeout
+    // below. Only the toast: Next's route announcer is an alert too (it reads the page title)
+    const errorToast = page.getByRole('alert').filter({ has: page.getByRole('img', { name: 'Error' }) });
     if ((await errorToast.count()) > 0) {
       throw new Error(`publish failed: ${(await errorToast.allInnerTexts()).join(' | ')}`);
     }

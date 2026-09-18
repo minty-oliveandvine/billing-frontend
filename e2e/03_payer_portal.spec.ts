@@ -2,9 +2,28 @@
 // app but read Minty's /api/me/* (the subscription tables the redesign retypes) and the payer's
 // profile; they move to minty-web in Part 2 and to the redesigned tables in Part 1 C7.
 import { expect, test } from '@playwright/test';
-import { handoff, requireCredentials, requireStack } from './helpers';
+import { handoff, requireCredentials, requireStack, subscriptionsDark } from './helpers';
+
+test.describe('payer portal while subscriptions are dark', () => {
+  test.skip(!subscriptionsDark(), 'the stack runs with subscriptions live');
+
+  test('the profile shows no portal cards and the portal pages go back to the profile', async ({ page }) => {
+    await requireStack();
+    await handoff(page, requireCredentials(), '/profile');
+    await expect(page.getByRole('heading', { name: 'Eve Tester', level: 1 })).toBeVisible();
+    for (const link of [/manage subscriptions/i, /^billing/i, /invoices/i]) {
+      await expect(page.getByRole('link', { name: link })).toHaveCount(0);
+    }
+    for (const path of ['/profile/subscriptions', '/profile/billing', '/profile/invoices']) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/profile\/?$/);
+    }
+  });
+});
 
 test.describe('payer portal', () => {
+  test.skip(subscriptionsDark(), 'the stack runs with subscriptions dark: the portal is hidden');
+
   test.beforeEach(async ({ page }) => {
     await requireStack();
     await handoff(page, requireCredentials(), '/profile');

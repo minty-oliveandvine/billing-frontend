@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { subscriptionsEnabled } from "@/lib/subscriptions";
+
 /**
  * The payer portal's front door: three cards on My Profile.
  *
@@ -47,6 +49,9 @@ const LINKS: PortalLink[] = [
 ];
 
 export function ProfilePortalLinks() {
+  // Subscriptions dark (lib/subscriptions.ts): no cards - the pages they open are
+  // redirected away, and Minty answers their data with 404.
+  if (!subscriptionsEnabled()) return null;
   return (
     <nav className="mt-4 flex flex-col gap-[18px]" aria-label="Subscription and billing">
       {LINKS.map(({ href, title, detail, comingSoon }) => (

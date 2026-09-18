@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { isPortalPath, subscriptionsEnabled } from "@/lib/subscriptions";
+
 const AUTH_COOKIE = "billing_token";
 
 export function middleware(request: NextRequest) {
@@ -19,6 +21,15 @@ export function middleware(request: NextRequest) {
   if (!token) {
     const url = request.nextUrl.clone();
     url.pathname = "/module-selection";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Subscriptions dark (lib/subscriptions.ts): the payer portal's pages go back to the
+  // profile, which shows no portal cards in that state either.
+  if (!subscriptionsEnabled() && isPortalPath(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/profile";
     url.search = "";
     return NextResponse.redirect(url);
   }

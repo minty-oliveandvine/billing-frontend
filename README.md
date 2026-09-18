@@ -50,6 +50,8 @@ the reason nothing is bypassed. Specs skip with a reason when a service is missi
 
 ## Before changing anything
 
+- [`docs/features/README.md`](docs/features/README.md) — one page per feature: how a person
+  arrives with Minty's token, the list / dialog / detail page, the payer portal.
 - [`docs/ERROR_COPY.md`](docs/ERROR_COPY.md) — the user-facing error standard shared across the
   Minty repos. A failure is a sentence, not a status; `detail` from the backend is rendered as
   is when it reads as one.

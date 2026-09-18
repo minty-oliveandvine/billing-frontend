@@ -2,7 +2,7 @@
 
 > Historical (July 2026). Branch `code-cleanse-lib` no longer exists; the work it
 > records was merged. The current per-repo work document is
-> `Minty/docs/code_cleanse/Code Cleanse - billing-frontend.docx`.
+> `Minty/docs/code_cleanse/Code Cleanse - billing-frontend.md`.
 
 Branch: `code-cleanse-lib`. Not pushed.
 

@@ -278,7 +278,7 @@ function ModuleSelectionContent() {
   return (
     <div className="flex min-h-dvh min-h-screen flex-col overflow-x-hidden bg-white">
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 py-6 sm:gap-6 sm:p-8 md:gap-8">
-        <Image src="/logo-selection.webp" alt="Logo" width={560} height={560} priority sizes="(max-width: 640px) 320px, (max-width: 768px) 400px, (max-width: 1024px) 480px, 560px" className="h-auto w-full max-w-[160px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[280px]" />
+        <Image src="/minty-mark.png" alt="Logo" width={400} height={292} priority sizes="(max-width: 640px) 320px, (max-width: 768px) 400px, (max-width: 1024px) 480px, 560px" className="h-auto w-full max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[210px]" />
 
         {hasMounted && entityNameRef.current && (
           <div className="flex items-center gap-3 rounded-full border border-gray-100 bg-white px-4 py-2 shadow-sm">

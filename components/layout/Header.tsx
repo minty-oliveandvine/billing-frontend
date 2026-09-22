@@ -60,7 +60,7 @@ export function Header({
   const brand = (
     <>
       {showLogo ? (
-        <Image src="/logo-selection.webp" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
+        <Image src="/minty-mark.png" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
       ) : null}
       <span className="min-w-0 cursor-default truncate text-base font-semibold text-black sm:text-lg">{title}</span>
     </>
@@ -119,7 +119,7 @@ export function Header({
       </Link>
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         {showLogo ? (
-          <Image src="/logo-selection.webp" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
+          <Image src="/minty-mark.png" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
         ) : null}
         <span className="min-w-0 cursor-default truncate text-base font-semibold text-black sm:text-lg">{title}</span>
         {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
@@ -130,7 +130,7 @@ export function Header({
     <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
       {showLogo ? (
         <Link href={homeHref} className="shrink-0">
-          <Image src="/logo-selection.webp" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
+          <Image src="/minty-mark.png" alt="" width={40} height={40} priority className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" />
         </Link>
       ) : null}
       <span className="min-w-0 cursor-default truncate text-base font-semibold text-black sm:text-lg">{title}</span>

@@ -16,7 +16,7 @@ export default function MaintenancePage() {
     <div className="flex min-h-dvh min-h-screen flex-col bg-white">
       <header className="flex w-full shrink-0 justify-center px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-2 sm:pt-8 sm:pb-3">
         <Image
-          src="/logo-selection.webp"
+          src="/minty-mark.png"
           alt="Logo"
           width={160}
           height={160}

@@ -121,7 +121,7 @@ export function AccountCodeSettings() {
   return (
     <div className="w-full pb-8 pt-2 sm:pt-3">
       {/* Two different reasons the controls are dead, and they need different
-          sentences — same split the Module & Subscription section makes in Minty.
+          sentences — same split the Module section makes in Minty.
           Held until `loading` clears: the role arrives from the cookie one frame
           late, so an accountant would otherwise see this flash at them. */}
       {!loading && readOnly ? (

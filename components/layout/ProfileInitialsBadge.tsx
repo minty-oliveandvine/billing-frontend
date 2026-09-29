@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchAuthMe } from "@/lib/api";
+import { useMintyProfileUrl } from "@/lib/useMintyProfileUrl";
 
 function initialsFromNames(first?: string | null, last?: string | null): string {
   const f = (first ?? "").trim();
@@ -18,6 +19,8 @@ function initialsFromNames(first?: string | null, last?: string | null): string 
 export function ProfileInitialsBadge() {
   const [abbr, setAbbr] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("User profile");
+  // Through Minty, which decides which profile opens (lib/mintyUrls.ts)
+  const profileHref = useMintyProfileUrl();
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +45,7 @@ export function ProfileInitialsBadge() {
 
   return (
     <Link
-      href="/profile"
+      href={profileHref}
       className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-full bg-[#FFE6B1] text-[12px] font-semibold text-[#6B3A12] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
       aria-label={`${label} — open My Profile`}
       title={label}

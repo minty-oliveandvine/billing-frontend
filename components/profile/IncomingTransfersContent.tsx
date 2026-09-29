@@ -11,6 +11,7 @@ import {
   type IncomingTransfer,
 } from "@/lib/payerPortal";
 import { day, money } from "@/lib/payerPortalFormat";
+import { useMintyProfileUrl } from "@/lib/useMintyProfileUrl";
 
 import { InheritedTrials } from "./InheritedTrials";
 
@@ -43,6 +44,7 @@ export function IncomingTransfersContent() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ id: string; message: string } | null>(null);
+  const profileHref = useMintyProfileUrl();
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -121,7 +123,7 @@ export function IncomingTransfersContent() {
           here for you to accept or decline.
         </p>
         <Link
-          href="/profile"
+          href={profileHref}
           className="mt-6 inline-flex cursor-pointer items-center justify-center rounded-[10px] border border-[#D8DEE4] bg-white px-5 py-2.5 text-sm font-semibold text-[#292E38] transition-colors hover:bg-[#F5F7FA]"
         >
           Back to My Profile

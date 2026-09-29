@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { ChangeSubscriberContent } from "@/components/profile/ChangeSubscriberContent";
 import { PortalShell } from "@/components/profile/PortalShell";
+import { useMintyProfileUrl } from "@/lib/useMintyProfileUrl";
 
 /**
  * /profile/subscriptions/subscriber?entity=<id> — "Change subscriber" on the row menu.
@@ -15,6 +16,7 @@ import { PortalShell } from "@/components/profile/PortalShell";
  */
 function ChangeSubscriberView() {
   const entityId = useSearchParams().get("entity") ?? undefined;
+  const profileHref = useMintyProfileUrl();
 
   return (
     <PortalShell
@@ -22,7 +24,7 @@ function ChangeSubscriberView() {
       title="Change subscriber"
       subtitle="Assign this entity's subscription billing to a different person."
       crumbs={[
-        { label: "My Profile", href: "/profile" },
+        { label: "My Profile", href: profileHref },
         { label: "Manage Subscriptions", href: "/profile/subscriptions" },
         { label: "Change subscriber" },
       ]}

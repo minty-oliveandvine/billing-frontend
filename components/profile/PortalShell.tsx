@@ -10,6 +10,7 @@ import {
   type PortalTabId,
 } from "@/components/profile/PortalTabs";
 import { logoutSession } from "@/lib/api";
+import { useMintyProfileUrl } from "@/lib/useMintyProfileUrl";
 import { clearAuth, getAuth, type AuthInfo } from "@/lib/auth";
 import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 
@@ -46,6 +47,7 @@ export function PortalShell({
   showTabs?: boolean;
 }) {
   const [auth, setAuth] = useState<AuthInfo | null>(null);
+  const profileHref = useMintyProfileUrl();
 
   useEffect(() => {
     setAuth(getAuth());
@@ -76,7 +78,7 @@ export function PortalShell({
         showLogo={false}
         crumbs={
           crumbs ?? [
-            { label: "My Profile", href: "/profile" },
+            { label: "My Profile", href: profileHref },
             { label: PORTAL_TAB_LABELS[tab] },
           ]
         }

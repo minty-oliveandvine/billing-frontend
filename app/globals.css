@@ -7,6 +7,13 @@
   --foreground: #171717;
   --primary: #656565;
   --secondary: #54d3da;
+  /* The sidebar and My Profile copied from minty-web (components/ui/Sidebar.tsx, 2026-09-30):
+     minty-web's tokens, the same values - the avatar pair, SuperMinty's teal and the accent
+     the Subscriptions Overview draws "Trial ending" in. */
+  --avatar-bg: #ffe6b1;
+  --avatar-fg: #6b3a12;
+  --teal-strong: #18c4c7;
+  --accent: #f15a24;
   /* Inter from next/font (--font-inter on <html className>) */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: ui-monospace, monospace;
@@ -15,6 +22,8 @@
 @theme {
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
+  --color-teal-strong: var(--teal-strong);
+  --color-accent: var(--accent);
 }
 
 @media (prefers-color-scheme: dark) {

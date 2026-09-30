@@ -22,9 +22,10 @@ account deactivation (`DELETE /api/profile/me`), the way back to Minty, and — 
 the three cards into the portal (`PortalShell`, `PortalTabs`: Manage Subscriptions,
 Billing, Invoices).
 
-**Moving to minty-web (2026-09-29).** My Profile is minty-web's `/profile` now (Figma 10-A/10-B).
-Every "My Profile" link in this app — the header's initials badge, the portal's crumbs, the
-incoming-requests page's _Back to My Profile_ — goes through Minty's `GET /profile`
+**Moving to minty-web (2026-09-29).** My Profile is minty-web's `/profile` now (Figma 10-A/10-B),
+and since 2026-09-30 the header's initials open a copy of it IN PLACE, in the sidebar
+([sidebar.md](sidebar.md)). The other "My Profile" links in this app — the portal's crumbs, the
+incoming-requests page's _Back to My Profile_ — go through Minty's `GET /profile`
 (`lib/mintyUrls.ts::buildMintyProfileUrl`, `lib/useMintyProfileUrl.ts`), entered through
 `/entity/<id>/enter` with `?entity_id=<company>&from=bills`. Minty decides which profile opens:
 minty-web's while its `MINTY_WEB_HUB` is on, **this page otherwise** — so this page must never

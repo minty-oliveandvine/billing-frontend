@@ -18,7 +18,10 @@ page except `/landing` and `/module-selection` to `/module-selection`
 (`middleware.ts`), which offers the way back into Minty.
 
 The cookies are readable by script on purpose (the app itself attaches the token); they
-are cleared client-side on logout and by `POST /api/auth/logout` on the backend.
+are cleared client-side on logout and by `POST /api/auth/logout` on the backend. **Logout** (the
+sidebar's menu and My Profile — [sidebar.md](sidebar.md)) ends the session everywhere since
+2026-09-30: after those two it leaves for Minty's `/logout`, where it used to land on Minty's
+entity list with Minty still signed in.
 
 ## Using the token
 
@@ -51,11 +54,18 @@ Minty verifies it. No entity id travels — the endpoints filter on the payer in
 While subscriptions are dark those endpoints answer 404, so the portal is hidden
 ([payer-portal.md](payer-portal.md)).
 
+## The sidebar talks to Flask and minty-billing-api directly
+
+My Profile reads and saves Flask's `/api/me/profile`, the header's initials read it once per
+token, and the Subscriptions Overview reads minty-billing-api's `/api/me/subscriptions` — all
+with this app's token (`components/ui/sidebarHost.ts`; [sidebar.md](sidebar.md)).
+
 ## Configuration
 
 `NEXT_PUBLIC_MODULE2_BACKEND_URL` (billing-backend), `NEXT_PUBLIC_MODULE1_URL` or
 `NEXT_PUBLIC_APP_ENV` + `NEXT_PUBLIC_MODULE1_URL_<ENV>` (Minty — see the apex/www trap in
-the `README`), `NEXT_PUBLIC_SUBSCRIPTION_ENABLED`; all inlined at build time.
+the `README`), `NEXT_PUBLIC_BILLING_API_URL` (minty-billing-api, default
+`http://localhost:8004`), `NEXT_PUBLIC_SUBSCRIPTION_ENABLED`; all inlined at build time.
 
 ## Tests
 

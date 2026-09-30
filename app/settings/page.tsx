@@ -4,9 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Header } from "@/components/layout";
 import { ModuleGate } from "@/components/ModuleGate";
 import { SettingsContent } from "@/components/settings/SettingsContent";
-import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
-import { fetchXeroStatus, logoutSession } from "@/lib/api";
-import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
+import { getAuth, type AuthInfo } from "@/lib/auth";
+import { fetchXeroStatus } from "@/lib/api";
 
 export default function SettingsPage() {
   const [auth, setAuthState] = useState<AuthInfo | null>(null);
@@ -20,23 +19,6 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Server call drops sign-in presence; the Minty session survives so the entity
-  // list is still reachable. See app/profile/page.tsx.
-  const handleLogout = async () => {
-    await logoutSession();
-    clearAuth();
-    window.location.href = `${MODULE1_URL}/entity`;
-  };
-
-  const entityAbbr = auth?.entityName
-    ? auth.entityName
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-    : "---";
-
   return (
     <ModuleGate>
     <div className="flex h-dvh h-screen min-w-0 max-w-full flex-col overflow-hidden bg-white">
@@ -46,8 +28,6 @@ export default function SettingsPage() {
         backHref="/"
         backLabel="Payments"
         companyName={auth?.entityName || "Loading…"}
-        companyAbbreviation={entityAbbr}
-        onLogout={handleLogout}
         xeroConnected={xeroConnected}
         noBorder
       />

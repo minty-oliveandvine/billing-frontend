@@ -10,6 +10,7 @@ a backend does not re-check.
 | Arriving with Minty's token, the cookies, refresh, what the role changes on screen, the module gate | [authentication.md](authentication.md) — the system-wide picture is `Minty/docs/features/authentication.md` |
 | The list (tabs, filters, table / easy view), the Add Payment dialog, the detail page (attachments, payments, publish, activity) | [payment-requests.md](payment-requests.md) |
 | The payer portal (`/profile/*`), the settings page, the maintenance page, the dark switch | [payer-portal.md](payer-portal.md) |
+| The sidebar on every page - the menu and My Profile, copied from minty-web for `@minty/shared` | [sidebar.md](sidebar.md) |
 | User-facing error copy | [../ERROR_COPY.md](../ERROR_COPY.md) |
 
 Running it and the environment variables: the repo `README.md`. Tests: `npm run test:e2e`

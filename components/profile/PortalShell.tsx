@@ -9,10 +9,8 @@ import {
   PortalTabs,
   type PortalTabId,
 } from "@/components/profile/PortalTabs";
-import { logoutSession } from "@/lib/api";
 import { useMintyProfileUrl } from "@/lib/useMintyProfileUrl";
-import { clearAuth, getAuth, type AuthInfo } from "@/lib/auth";
-import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
+import { getAuth, type AuthInfo } from "@/lib/auth";
 
 /**
  * Chrome shared by the three payer-portal pages.
@@ -53,24 +51,7 @@ export function PortalShell({
     setAuth(getAuth());
   }, []);
 
-  // Server call drops sign-in presence; the Minty session survives so the entity
-  // list is still reachable. See app/profile/page.tsx.
-  const handleLogout = async () => {
-    await logoutSession();
-    clearAuth();
-    window.location.href = `${MODULE1_URL}/entity`;
-  };
-
   const entityName = (auth?.entityName ?? "").trim();
-  const entityAbbr = entityName
-    ? entityName
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-    : "---";
-
   return (
     <div className="flex min-h-dvh min-h-screen min-w-0 max-w-full flex-col overflow-x-clip bg-[#F7F9FA] pb-[env(safe-area-inset-bottom,0px)]">
       <Header
@@ -83,8 +64,6 @@ export function PortalShell({
           ]
         }
         companyName={!auth ? "Loading…" : entityName || "—"}
-        companyAbbreviation={entityAbbr}
-        onLogout={handleLogout}
       />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
         <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-7">

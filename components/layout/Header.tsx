@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { NavMenu } from "./NavMenu";
-import { ProfileInitialsBadge } from "./ProfileInitialsBadge";
+import { NavMenu } from "@/components/ui/NavMenu";
+import { ViewerBadge } from "@/components/ui/ViewerBadge";
 
 /** One step in the header trail. No `href` on the last one — you are already there. */
 export type Crumb = { label: string; href?: string };
@@ -25,10 +25,7 @@ type HeaderProps = {
   crumbs?: Crumb[];
   statusBadge?: ReactNode;
   titleActions?: ReactNode;
-  navItems?: { href: string; label: string }[];
   companyName?: string;
-  companyAbbreviation?: string;
-  onLogout?: () => void;
   /** When true, tints the company icon green to indicate an active Xero connection. */
   xeroConnected?: boolean;
   /** Omit top safe-area padding when a row above the header already applies it. */
@@ -46,10 +43,7 @@ export function Header({
   crumbs,
   statusBadge,
   titleActions,
-  navItems,
   companyName = "Insert Company Here",
-  companyAbbreviation = "---",
-  onLogout,
   xeroConnected,
   suppressTopSafeArea = false,
   noBorder = false,
@@ -158,9 +152,11 @@ export function Header({
           <span className="min-w-0 max-w-[min(100%,6.5rem)] truncate text-sm font-medium text-primary sm:max-w-[9rem] sm:text-base md:max-w-[14rem] lg:max-w-md">
             {companyName}
           </span>
+          {/* The sidebar's two doors (components/ui/Sidebar.tsx, copied from minty-web): the
+              initials open My Profile, the ≡ the menu. The menu's Logout is the app's. */}
           <div className="flex shrink-0 items-center gap-1.5 pl-0.5 sm:gap-2 sm:pl-2">
-            <ProfileInitialsBadge />
-            <NavMenu items={navItems} companyAbbreviation={companyAbbreviation} onLogout={onLogout} />
+            <ViewerBadge />
+            <NavMenu />
           </div>
         </div>
       </div>

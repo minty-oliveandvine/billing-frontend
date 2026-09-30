@@ -56,15 +56,6 @@ export default function ProfilePage() {
   };
 
   const entityNameTrim = (auth?.entityName ?? "").trim();
-  const entityAbbr = entityNameTrim
-    ? entityNameTrim
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-    : "---";
-
   /**
    * Back to WHERE THEY CAME FROM, which is not always this app.
    *
@@ -103,8 +94,6 @@ export default function ProfilePage() {
         backHref={backHref}
         backLabel={backLabel}
         companyName={!auth ? "Loading…" : entityNameTrim || "—"}
-        companyAbbreviation={entityAbbr}
-        onLogout={handleLogout}
         xeroConnected={xeroConnected}
       />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">

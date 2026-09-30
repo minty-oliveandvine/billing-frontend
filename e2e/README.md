@@ -25,6 +25,7 @@ themselves with the shared `SECRET_KEY` (see `e2e/helpers.ts` for why nothing is
 | `E2E_MINTY_USER` / `E2E_MINTY_ENTITY` | the identity `Minty/scripts/e2e_seed.py --print` creates — the entity has the BILL module on, synced suppliers and bill account codes |
 | `E2E_MINTY_ENTITY_NAME` | optional, default `E2E Petty Cash Shop` |
 | `E2E_BASE_URL` / `E2E_BACKEND_URL` / `E2E_FLASK_URL` | the three hosts; default the local ports, set them to the deployed hosts for a run against a deployment |
+| `E2E_BILLING_API_URL` | minty-billing-api, whose `/api/me/subscriptions` `05_sidebar` stubs (default `http://localhost:8004`) |
 | `E2E_SUBSCRIPTIONS` | `0` when the backends run with `SUBSCRIPTION_ENABLED=0` (the payer portal is dark) |
 | `E2E_XERO` | `1` when the e2e entity is connected to a Xero organisation (a Demo Company, linked by hand): `04_xero_publish` runs and the supplier is `ABC Furniture` instead of the seed's placeholder; `E2E_SUPPLIER_QUERY` / `E2E_SUPPLIER` / `E2E_BILL_ACCOUNT_CODE` override the names |
 
@@ -38,6 +39,7 @@ Run the seed in the Minty repo before every run. Never commit any of these value
 | `02_bill_lifecycle.spec.ts` | Add Payment dialog: save as draft (supplier and account-code pickers) → listed under Draft; Confirm without attachment/due date shows both validation alerts; the draft's detail page |
 | `03_payer_portal.spec.ts` | profile, billing accounts, invoices, manage subscriptions, settings account-code picker |
 | `04_xero_publish.spec.ts` | `E2E_XERO=1` only: a complete request (dates, attachment) confirmed → Payment Requested → Publish from the payment actions menu → Republish offered, also after a reload — the real ACCPAY invoice, attachment upload and the Minty token hand-off |
+| `05_sidebar.spec.ts` | the sidebar copied from minty-web, over a stubbed Flask profile and billing API: initials → My Profile (440 px, plan, role, the overview), ‹ and Escape; the menu's links from here (Settings = `/settings`); a save sends only what changed and the header follows; a refusal in the card; a dark API draws no card; Logout clears the cookies and leaves for Minty's `/logout` |
 
 ## Findings the suite records
 

@@ -5,14 +5,13 @@ import { EasyViewToggle, Header } from "@/components/layout";
 import { PaymentRequestView } from "@/components/payment-request";
 import { ModuleGate } from "@/components/ModuleGate";
 import { SubscriptionNoticeModal } from "@/components/SubscriptionNoticeModal";
-import { getAuth, clearAuth, type AuthInfo } from "@/lib/auth";
-import { fetchXeroStatus, fetchMe, logoutSession } from "@/lib/api";
+import { getAuth, type AuthInfo } from "@/lib/auth";
+import { fetchXeroStatus, fetchMe } from "@/lib/api";
 import {
   claimSubscriptionNotice,
   fetchSubscriptionNotice,
   type SubscriptionNotice,
 } from "@/lib/subscriptionNotice";
-import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
 
 const EASY_VIEW_STORAGE_KEY = "payment-request-easy-view";
 
@@ -78,34 +77,6 @@ export default function Home() {
     fetchSubscriptionNotice().then((n) => setNotice(n));
   }, []);
 
-  const handleLogout = async () => {
-    // Folded into lib/api's logoutSession(), which every Log out button now shares
-    // — the call drops sign-in presence, so any screen that skipped it would leave
-    // the user listed on Minty's Settings > Users after signing out.
-    await logoutSession();
-    clearAuth();
-    try {
-      localStorage.removeItem(EASY_VIEW_STORAGE_KEY);
-    } catch {
-      /* private mode / unavailable */
-    }
-    // The entity list, named explicitly rather than leaning on Minty's `/` to
-    // redirect there. Log out from inside a company means "leave this company", and
-    // every other Log out in this app already says so in the URL; `/` only happened
-    // to land in the same place because the session survives, and would have shown
-    // the login page the day that stopped being true.
-    window.location.href = `${MODULE1_URL}/entity`;
-  };
-
-  const entityAbbr = auth?.entityName
-    ? auth.entityName
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-    : "---";
-
   return (
     <ModuleGate>
     <div className="flex min-h-dvh min-h-screen min-w-0 max-w-full flex-col overflow-x-clip bg-white pb-[env(safe-area-inset-bottom,0px)]">
@@ -113,13 +84,11 @@ export default function Home() {
         title="Payment Request"
         showLogo={false}
         companyName={auth?.entityName || "Loading…"}
-        companyAbbreviation={entityAbbr}
         titleActions={
           <div className="hidden shrink-0 items-center lg:flex">
             <EasyViewToggle enabled={easyView} onChange={setEasyView} />
           </div>
         }
-        onLogout={handleLogout}
         xeroConnected={xeroConnected}
       />
       <PaymentRequestView easyView={easyView} />

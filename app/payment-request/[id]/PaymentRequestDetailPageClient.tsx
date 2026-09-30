@@ -31,15 +31,6 @@ export function PaymentRequestDetailPageClient() {
 
   const showReadOnlyBanner = isViewOnly && isReadOnly(auth?.entityId ?? "");
 
-  const entityAbbr = auth?.entityName
-    ? auth.entityName
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-    : "---";
-
   return (
     <div className="flex min-h-dvh min-h-screen min-w-0 max-w-full flex-col overflow-x-clip bg-white">
       <Header
@@ -49,7 +40,6 @@ export function PaymentRequestDetailPageClient() {
         backHref="/"
         backLabel="Payments"
         companyName={auth?.entityName || "Loading…"}
-        companyAbbreviation={entityAbbr}
         statusBadge={<PaymentRequestDetailStatusBadge refreshSignal={billStatusRefresh} />}
         xeroConnected={xeroConnected}
       />

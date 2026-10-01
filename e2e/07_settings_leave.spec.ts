@@ -108,6 +108,21 @@ async function arriveFromTheList(page: Page): Promise<Run> {
 }
 const backLink = (page: Page) => page.getByRole('banner').getByRole('link', { name: /Payments/ });
 
+/**
+ * Arrive on `/settings`, then take the Payment Settings pill (a Next `<Link>` to
+ * `/settings?tab=bill`): two entries of ONE document, so a jump between them is a `popstate` the
+ * guard must hold (a jump into another document gets `beforeunload` instead).
+ */
+async function arriveWithASoftEntry(page: Page): Promise<{ run: Run; first: number }> {
+  const run = await arrive(page);
+  const first = await historyIndex(page);
+  await page.getByRole('link', { name: 'Payment Settings', exact: true }).click();
+  await expect(page).toHaveURL((u) => u.pathname === '/settings' && u.searchParams.get('tab') === 'bill');
+  await expect.poll(() => historyIndex(page)).toBe(first + 1);
+  return { run, first };
+}
+const jump = (page: Page, delta: number) => page.evaluate((d) => window.history.go(d), delta);
+
 test.describe('payment settings: leave without saving', () => {
   test.beforeEach(async () => {
     await requireStack();
@@ -244,6 +259,63 @@ test.describe('payment settings: leave without saving', () => {
 
     await expect(page).toHaveURL((u) => u.pathname === '/');
     await expect(leaveDialog(page)).toHaveCount(0);
+    expect(run.prompts).toEqual([]);
+  });
+
+  test('a jump of several entries asks too, and Discard changes goes where it was going', async ({ page }) => {
+    const { run, first } = await arriveWithASoftEntry(page);
+    await tick(page, '310').check();
+    await expect.poll(() => historyIndex(page)).toBe(first + 2); // the sentinel
+
+    await jump(page, -2);
+    const dialog = leaveDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL((u) => u.searchParams.get('tab') === 'bill');
+    expect(await historyIndex(page)).toBe(first + 2); // the jump undone: back on the sentinel
+    await dialog.getByRole('button', { name: 'Discard changes' }).click();
+
+    await expect(page).toHaveURL((u) => u.pathname === '/settings' && !u.searchParams.has('tab'));
+    await expect.poll(() => historyIndex(page)).toBe(first);
+    await expect(leaveDialog(page)).toHaveCount(0);
+    expect(run.prompts).toEqual([]);
+  });
+
+  test('a jump of several entries: Go Back stays, the tick and the sentinel kept, and it asks again', async ({ page }) => {
+    const { run, first } = await arriveWithASoftEntry(page);
+    await tick(page, '310').check();
+    await expect.poll(() => historyIndex(page)).toBe(first + 2);
+
+    await jump(page, -2);
+    const dialog = leaveDialog(page);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Go Back', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(tick(page, '310')).toBeChecked();
+    expect(await historyIndex(page)).toBe(first + 2);
+
+    await jump(page, -2);
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(tick(page, '310')).toBeChecked();
+    expect(run.prompts).toEqual([]);
+  });
+
+  test('an earlier entry at this same address is a jump, not the sentinel', async ({ page }) => {
+    const { run, first } = await arriveWithASoftEntry(page);
+    // a second entry at /settings?tab=bill (Next's own state kept, as the guard's sentinel does)
+    await page.evaluate(() => window.history.pushState(window.history.state, '', window.location.href));
+    await tick(page, '310').check();
+    await expect.poll(() => historyIndex(page)).toBe(first + 3);
+
+    await jump(page, -2); // onto the FIRST /settings?tab=bill - the same address as the sentinel
+    const dialog = leaveDialog(page);
+    await expect(dialog).toBeVisible();
+    expect(await historyIndex(page)).toBe(first + 3); // not a second sentinel pushed past it
+    await dialog.getByRole('button', { name: 'Discard changes' }).click();
+
+    await expect.poll(() => historyIndex(page)).toBe(first + 1);
+    await expect(page).toHaveURL((u) => u.searchParams.get('tab') === 'bill');
     expect(run.prompts).toEqual([]);
   });
 

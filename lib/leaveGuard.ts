@@ -26,9 +26,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * link) the sentinel is taken off with `history.back()` - that one `popstate` is swallowed so the
  * router never sees it - and a discarded link is replayed only after it, so Back from the next
  * page lands on the settings page once, not twice.
- * Not held: a jump of several entries at once (the long-press history menu) - it lands past the
- * sentinel and leaves without asking.
+ *
+ * A jump of several entries at once (the long-press history menu, `history.go(-3)`) lands past
+ * the sentinel. The Navigation API's entry index (`navigation.currentEntry.index`) says how far:
+ * the page swallows that `popstate` too, jumps straight back onto the sentinel with
+ * `history.go(n)` (its own pop, swallowed like the one above) and asks. "Discard changes" then
+ * takes the sentinel off and goes the rest of the way (`history.go(-(n - 1))`). The index, not
+ * the address, decides what a pop was: an earlier entry at this same address is a jump, not the
+ * sentinel. A jump to another document's entry unloads the page and gets `beforeunload`. Where
+ * the browser has no Navigation API, a several-entry jump still leaves without asking (warned once
+ * in the console).
  */
+
+/** The Navigation API, where the browser has it (TypeScript's DOM lib may not declare it). */
+function historyIndex(): number | null {
+  const nav = (window as unknown as { navigation?: { currentEntry?: { index: number } | null } }).navigation;
+  const index = nav?.currentEntry?.index;
+  return typeof index === "number" && index >= 0 ? index : null;
+}
+
+let warnedNoIndex = false;
 
 /** On the wrapper the page portals the dialog in: a link inside the open dialog is never held. */
 const LEAVE_DIALOG_ATTR = "data-leave-dialog";
@@ -96,6 +113,8 @@ export function useLeaveGuard(dirty: boolean, reset: () => void): LeaveGuard {
   const unload = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
   /** The address the sentinel entry sits at, while it is the top history entry; else null. */
   const sentinel = useRef<string | null>(null);
+  /** The sentinel entry's history index (Navigation API), or null where the browser has none. */
+  const sentinelIndex = useRef<number | null>(null);
   /** Set while our own `history.back()` (taking the sentinel off) is on its way: what runs then. */
   const afterOwnPop = useRef<(() => void) | null>(null);
   /** Turned dirty again while that pop was on its way: push the sentinel once it lands. */
@@ -115,6 +134,7 @@ export function useLeaveGuard(dirty: boolean, reset: () => void): LeaveGuard {
     const here = window.location.href;
     window.history.pushState(window.history.state, "", here);
     sentinel.current = here;
+    sentinelIndex.current = historyIndex();
   }, []);
 
   /** Take the sentinel off (if it is there), then `then` - after the browser has moved. */
@@ -146,8 +166,31 @@ export function useLeaveGuard(dirty: boolean, reset: () => void): LeaveGuard {
         return;
       }
       if (!dirtyRef.current || sentinel.current === null) return;
-      if (window.location.href !== sentinel.current) {
-        // several entries at once (header): already past the page; the router takes it
+      const from = sentinelIndex.current;
+      const to = historyIndex();
+      const jump = from !== null && to !== null ? from - to : null;
+      if (jump !== null && jump > 1) {
+        // several entries at once (header): undo the jump onto the sentinel, then ask
+        e.stopImmediatePropagation();
+        const at = sentinel.current;
+        sentinel.current = null;
+        afterOwnPop.current = () => {
+          sentinel.current = at;
+          sentinelIndex.current = from;
+          pending.current = () => window.history.go(-(jump - 1));
+          setOpen(true);
+        };
+        window.history.go(jump);
+        return;
+      }
+      if (jump === null ? window.location.href !== sentinel.current : jump !== 1) {
+        // no index to measure with (header), or not a step back: the router takes it
+        if (jump === null && !warnedNoIndex) {
+          warnedNoIndex = true;
+          console.warn(
+            "[leave guard] this browser has no Navigation API: a jump of several history entries leaves without asking",
+          );
+        }
         sentinel.current = null;
         return;
       }

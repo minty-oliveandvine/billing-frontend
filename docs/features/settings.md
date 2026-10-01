@@ -52,8 +52,16 @@ off and goes back once more; Go Back and Escape stay. Forward needs nothing (the
 forward entries off). When the page is clean again - saved, ticks put back by hand, or discarded
 through a link - the sentinel is taken off with `history.back()` (that `popstate` is swallowed,
 the router never sees it) and a discarded link is replayed only after it, so Back from the next
-page lands on Payment Settings once. Not held: a jump of several entries at once (the long-press
-history menu) lands past the sentinel and leaves without asking.
+page lands on Payment Settings once.
+
+**A jump of several entries at once** (the long-press history menu, `history.go(-3)`) is held
+too, since 2026-10-01. The Navigation API's entry index (`navigation.currentEntry.index`) says
+how far it went: the page swallows that `popstate`, jumps straight back onto the sentinel
+(`history.go(n)`, its own pop, swallowed) and asks. Discard changes takes the sentinel off and
+goes the rest of the way. The index, not the address, decides what a pop was, so an earlier entry
+at this same address counts as a jump. A jump into another document's entry unloads the page and
+gets the browser's `beforeunload` prompt. In a browser without the Navigation API a several-entry
+jump still leaves without asking; the page warns once in the console.
 
 ### At least one code ticked (2026-10-01)
 

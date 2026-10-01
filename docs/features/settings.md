@@ -29,7 +29,7 @@ every way out of the page asks first (`lib/leaveGuard.ts`, `useLeaveGuard`): min
 - A successful save clears `hasChanges`, so nothing asks; a failed save keeps it. A save that
   partly went through moves the saved set by each row that did (`Promise.allSettled`), so the
   guard and "Discard changes" measure from what the server holds, and the toast says some
-  changes didn't save.
+  changes didn't save - or, for a 409, the server's own sentence.
 - A reload, a typed address or a closed tab get the browser's own prompt (`beforeunload`, on
   only while dirty and removed before Discard leaves, so the two never both show).
 - **Logout** (the sidebar's and My Profile's, `sidebarHost.ts` `logOut()`) asks the same way
@@ -44,8 +44,27 @@ Which clicks ask - a left click with no modifier key on an `<a href>`, unless:
 
 A link to exactly this address (the sidebar's Settings on `/settings`) DOES ask: it reloads.
 
-**Known gap:** the browser's Back and Forward inside this app are soft navigations (no click, no
-`beforeunload`), so they leave without asking.
+**The browser's Back** (2026-10-01; it used to leave without asking) is held by a SENTINEL: when
+the page turns dirty it pushes one history entry at its own address (Next's state object kept).
+Back pops only that entry - a `popstate` caught on `window` in the capture phase, ahead of the
+app router's listener - so the page pushes it again and asks. Discard changes takes the sentinel
+off and goes back once more; Go Back and Escape stay. Forward needs nothing (the push cut the
+forward entries off). When the page is clean again - saved, ticks put back by hand, or discarded
+through a link - the sentinel is taken off with `history.back()` (that `popstate` is swallowed,
+the router never sees it) and a discarded link is replayed only after it, so Back from the next
+page lands on Payment Settings once. Not held: a jump of several entries at once (the long-press
+history menu) lands past the sentinel and leaves without asking.
+
+### At least one code ticked (2026-10-01)
+
+With codes on the list and none ticked, **Save is off** and "Pick at least one account code."
+shows under it (plain text, never a `title`). A save sends the rows turning ON first, then the
+rows turning OFF (each batch `Promise.allSettled`), so it never passes through a moment with
+nothing ticked. billing-backend enforces the same rule: unticking the entity's last ticked code
+answers **409** "Keep at least one account code ticked." and writes nothing; the toast shows
+that sentence. These ticks are the payment module's own (`entity_bill_account_xero.is_active`);
+they no longer touch Petty Cash's `account_info.status` (that mirror was removed 2026-10-01 - it
+unticked codes in Petty Cash, whose publish refuses them).
 
 **The dialog is a COPY** of minty-web's, at its own paths, each headed `COPY of minty-web/<path>
 ... change all three (minty-web, here, Flask's port: Minty static/js/minty_dialog.js +
@@ -77,4 +96,7 @@ maintenance gate of its own yet; a real `MAINTENANCE_MODE` is a Part 2 deliverab
 `e2e/07_settings_leave.spec.ts` (the code list stubbed): nothing changed leaves at once; a tick
 held by the back link (Go Back and Escape stay); a Flask pill goes after Discard with no browser
 prompt; the sidebar's Settings asks above the drawer, Escape closes only the dialog, and Discard
-reloads the saved ticks; Logout asks, and Go Back logs nobody out.
+reloads the saved ticks; Logout asks, and Go Back logs nobody out; the browser's Back asks (Go
+Back and Escape stay, the sentinel kept), Back then Discard goes to the page before, and after a
+save Back leaves without asking (the sentinel gone); nothing ticked greys Save with the hint; a
+409 shows the server's sentence, with the ON rows sent before the OFF ones.

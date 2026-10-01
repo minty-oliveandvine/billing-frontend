@@ -1,9 +1,10 @@
 // Payment Settings' "Leave without saving?" (lib/leaveGuard.ts, the dialog copied from minty-web):
 // ticks not saved yet hold every way out of the page - the header's back link, the Flask pills,
-// the sidebar's links and its Logout - until "Discard changes"; "Go Back" and Escape stay.
+// the sidebar's links, its Logout and the browser's Back - until "Discard changes"; "Go Back" and
+// Escape stay. Save itself: off with nothing ticked, and a refusal shown in the server's words.
 //
 // Only the account-code list is stubbed (a fixed list, two of three active, so the saved ticks are
-// known); everything else is the stack. Pages on Flask's origin are answered by a stub page, so
+// known; a PUT answers `run.put`); everything else is the stack. Pages on Flask's origin are answered by a stub page, so
 // Flask need not serve them, and Minty's /logout and the backend's logout call are caught, so no run
 // signs anybody out. The browser's own leave prompt must never fire where our dialog asked.
 import { expect, test, type Dialog, type Page, type Route } from '@playwright/test';
@@ -30,17 +31,33 @@ function cors(route: Route): Record<string, string> {
   };
 }
 
-type Run = { creds: Credentials; prompts: string[]; logouts: string[] };
+type Run = {
+  creds: Credentials;
+  prompts: string[];
+  logouts: string[];
+  /** What a PUT answers; each one sent is recorded in `puts`. */
+  put: { status: number; detail?: string };
+  puts: { id: string; is_active: boolean }[];
+};
 
 async function arrive(page: Page): Promise<Run> {
   const creds = requireCredentials();
-  const run: Run = { creds, prompts: [], logouts: [] };
+  const run: Run = { creds, prompts: [], logouts: [], put: { status: 200 }, puts: [] };
   page.on('dialog', (d: Dialog) => {
     run.prompts.push(d.type());
     void d.dismiss();
   });
   await page.route('**/entity-bill-accounts/**', (route: Route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors(route) });
+    if (route.request().method() === 'PUT') {
+      const id = new URL(route.request().url()).pathname.split('/').pop() ?? '';
+      const { is_active } = route.request().postDataJSON() as { is_active: boolean };
+      run.puts.push({ id, is_active });
+      const body = run.put.status === 200
+        ? { id, entity_id: creds.entityId, account_code: id.replace('e2e-leave-', ''), account_name: '', account_type: 'EXPENSE', is_default: false, is_active, sort_order: 0 }
+        : { detail: run.put.detail };
+      return route.fulfill({ status: run.put.status, headers: cors(route), contentType: 'application/json', body: JSON.stringify(body) });
+    }
     const body = ACCOUNTS.map((a, i) => ({
       id: `e2e-leave-${a.code}`,
       entity_id: creds.entityId,
@@ -75,6 +92,20 @@ async function arrive(page: Page): Promise<Run> {
 }
 
 const leaveDialog = (page: Page) => page.getByRole('dialog', { name: 'Leave without saving?' });
+const saveButton = (page: Page) => page.getByRole('button', { name: 'Save Changes' });
+/** The history entry the tab is on (Chrome's Navigation API): shows the sentinel come and go. */
+const historyIndex = (page: Page) =>
+  page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
+
+/** Arrive, then put the payments list behind the settings page, so Back has somewhere to go. */
+async function arriveFromTheList(page: Page): Promise<Run> {
+  const run = await arrive(page);
+  await page.goto('/');
+  await expect(page).toHaveURL((u) => u.pathname === '/');
+  await page.goto('/settings');
+  await expect(tick(page, '200')).toBeChecked();
+  return run;
+}
 const backLink = (page: Page) => page.getByRole('banner').getByRole('link', { name: /Payments/ });
 
 test.describe('payment settings: leave without saving', () => {
@@ -178,5 +209,93 @@ test.describe('payment settings: leave without saving', () => {
     expect(cookies.find((c) => c.name === 'billing_token')?.value ?? '').not.toBe('');
     expect(run.logouts).toEqual([]);
     expect(run.prompts).toEqual([]);
+  });
+  test("the browser's Back asks: Go Back stays on the page, the tick and the sentinel kept", async ({ page }) => {
+    const run = await arrive(page);
+    const before = await historyIndex(page);
+    await tick(page, '310').check();
+    await expect.poll(() => historyIndex(page)).toBe(before + 1); // the sentinel
+
+    await page.goBack();
+    const dialog = leaveDialog(page);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Go Back', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL((u) => u.pathname === '/settings');
+    await expect(tick(page, '310')).toBeChecked();
+    expect(await historyIndex(page)).toBe(before + 1); // pushed again: Back asks again
+
+    await page.goBack();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(tick(page, '310')).toBeChecked();
+    expect(run.prompts).toEqual([]);
+  });
+
+  test("the browser's Back, then Discard changes, goes back to the page before", async ({ page }) => {
+    const run = await arriveFromTheList(page);
+    await tick(page, '310').check();
+
+    await page.goBack();
+    const dialog = leaveDialog(page);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Discard changes' }).click();
+
+    await expect(page).toHaveURL((u) => u.pathname === '/');
+    await expect(leaveDialog(page)).toHaveCount(0);
+    expect(run.prompts).toEqual([]);
+  });
+
+  test("once saved, the browser's Back leaves without asking", async ({ page }) => {
+    const run = await arriveFromTheList(page);
+    const before = await historyIndex(page);
+    await tick(page, '310').check();
+    await expect.poll(() => historyIndex(page)).toBe(before + 1);
+
+    await saveButton(page).click();
+    await expect(page.getByText('Payment settings updated successfully')).toBeVisible();
+    expect(run.puts).toEqual([{ id: 'e2e-leave-310', is_active: true }]);
+    await expect.poll(() => historyIndex(page)).toBe(before); // the sentinel taken off
+
+    await page.goBack();
+    await expect(page).toHaveURL((u) => u.pathname === '/');
+    await expect(leaveDialog(page)).toHaveCount(0);
+    expect(run.prompts).toEqual([]);
+  });
+
+  test('nothing ticked: Save is off and says why', async ({ page }) => {
+    const run = await arrive(page);
+    const hint = page.getByText('Pick at least one account code.');
+    await expect(hint).toHaveCount(0);
+    await tick(page, '200').uncheck();
+    await expect(saveButton(page)).toBeEnabled();
+    await tick(page, '429').uncheck();
+
+    await expect(saveButton(page)).toBeDisabled();
+    await expect(hint).toBeVisible();
+    await expect(saveButton(page)).not.toHaveAttribute('title', /.+/);
+    await tick(page, '310').check();
+    await expect(saveButton(page)).toBeEnabled();
+    await expect(hint).toHaveCount(0);
+    expect(run.puts).toEqual([]);
+  });
+
+  test("a refused untick shows the server's reason, and the page still asks before leaving", async ({ page }) => {
+    const run = await arrive(page);
+    run.put = { status: 409, detail: 'Keep at least one account code ticked.' };
+    await tick(page, '310').check();
+    await tick(page, '200').uncheck();
+
+    await saveButton(page).click();
+    await expect(page.getByText('Keep at least one account code ticked.')).toBeVisible();
+    // ticks ON before ticks OFF
+    expect(run.puts).toEqual([
+      { id: 'e2e-leave-310', is_active: true },
+      { id: 'e2e-leave-200', is_active: false },
+    ]);
+    await expect(tick(page, '200')).not.toBeChecked();
+    await backLink(page).click();
+    await expect(leaveDialog(page)).toBeVisible();
   });
 });

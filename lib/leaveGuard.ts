@@ -16,8 +16,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * reload, a typed address or a tab closed get the browser's own prompt (`beforeunload`).
  * `guardLeave(proceed)` is the same question for an exit that is not a link (Logout).
  *
- * KNOWN GAP: the browser's Back and Forward inside this app are soft navigations - no click and
- * no `beforeunload` - so they leave without asking.
+ * Back and Forward are soft navigations (no click, no `beforeunload`), so the page holds them with
+ * a SENTINEL: when it turns dirty it pushes one history entry at its own address (Next's state
+ * object kept, so the router has nothing to do). Back then only pops the sentinel - a `popstate`
+ * caught on `window` in the CAPTURE phase, which at the target runs before the app router's own
+ * listener - and the page pushes it again and asks. "Discard changes" takes the sentinel off and
+ * goes back once more, to where the person was going. Forward needs nothing: the push cut the
+ * forward entries off. When the page is clean again (saved, ticks put back, or discarded through a
+ * link) the sentinel is taken off with `history.back()` - that one `popstate` is swallowed so the
+ * router never sees it - and a discarded link is replayed only after it, so Back from the next
+ * page lands on the settings page once, not twice.
+ * Not held: a jump of several entries at once (the long-press history menu) - it lands past the
+ * sentinel and leaves without asking.
  */
 
 /** On the wrapper the page portals the dialog in: a link inside the open dialog is never held. */
@@ -84,11 +94,78 @@ export function useLeaveGuard(dirty: boolean, reset: () => void): LeaveGuard {
   const pending = useRef<(() => void) | null>(null);
   /** The live `beforeunload` listener, removed before a discard leaves. */
   const unload = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
+  /** The address the sentinel entry sits at, while it is the top history entry; else null. */
+  const sentinel = useRef<string | null>(null);
+  /** Set while our own `history.back()` (taking the sentinel off) is on its way: what runs then. */
+  const afterOwnPop = useRef<(() => void) | null>(null);
+  /** Turned dirty again while that pop was on its way: push the sentinel once it lands. */
+  const pushAfterOwnPop = useRef(false);
 
   useEffect(() => {
     dirtyRef.current = dirty;
     resetRef.current = reset;
   });
+
+  const pushSentinel = useCallback(() => {
+    if (sentinel.current !== null) return;
+    if (afterOwnPop.current) {
+      pushAfterOwnPop.current = true;
+      return;
+    }
+    const here = window.location.href;
+    window.history.pushState(window.history.state, "", here);
+    sentinel.current = here;
+  }, []);
+
+  /** Take the sentinel off (if it is there), then `then` - after the browser has moved. */
+  const dropSentinel = useCallback((then?: () => void) => {
+    pushAfterOwnPop.current = false;
+    if (sentinel.current === null) {
+      then?.();
+      return;
+    }
+    sentinel.current = null;
+    afterOwnPop.current = then ?? (() => {});
+    window.history.back();
+  }, []);
+
+  // Back and Forward (see the header). Registered for the page's life, not only while dirty: the
+  // pop that takes the sentinel off arrives after the page is clean again.
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      const own = afterOwnPop.current;
+      if (own) {
+        // our own `history.back()` - the same address; the router must not see it
+        e.stopImmediatePropagation();
+        afterOwnPop.current = null;
+        own();
+        if (pushAfterOwnPop.current) {
+          pushAfterOwnPop.current = false;
+          if (dirtyRef.current) pushSentinel();
+        }
+        return;
+      }
+      if (!dirtyRef.current || sentinel.current === null) return;
+      if (window.location.href !== sentinel.current) {
+        // several entries at once (header): already past the page; the router takes it
+        sentinel.current = null;
+        return;
+      }
+      // Back popped the sentinel: put it back and ask
+      e.stopImmediatePropagation();
+      sentinel.current = null;
+      pushSentinel();
+      pending.current = () => window.history.back();
+      setOpen(true);
+    };
+    window.addEventListener("popstate", onPopState, true);
+    return () => window.removeEventListener("popstate", onPopState, true);
+  }, [pushSentinel]);
+
+  useEffect(() => {
+    if (dirty) pushSentinel();
+    else dropSentinel();
+  }, [dirty, pushSentinel, dropSentinel]);
 
   useEffect(() => {
     const guard: Guard = {
@@ -165,8 +242,9 @@ export function useLeaveGuard(dirty: boolean, reset: () => void): LeaveGuard {
       window.removeEventListener("beforeunload", unload.current);
       unload.current = null;
     }
-    proceed?.();
-  }, []);
+    // the sentinel off first, so Back from wherever this goes lands on the page once
+    dropSentinel(proceed ?? undefined);
+  }, [dropSentinel]);
 
   const stay = useCallback(() => {
     pending.current = null;

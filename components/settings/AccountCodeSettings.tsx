@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fetchEntityBillAccounts, updateEntityBillAccount } from "@/lib/api";
+import { ApiError, fetchEntityBillAccounts, updateEntityBillAccount } from "@/lib/api";
 import { useLeaveGuard } from "@/lib/leaveGuard";
 import { useUserRole } from "@/lib/useUserRole";
 import { useToast } from "@/components/Toast";
@@ -79,29 +79,46 @@ export function AccountCodeSettings() {
     return ids;
   }, [rows, selectedIds, savedIds]);
 
+  // The server refuses to untick its last ticked code (409), so the page never offers it:
+  // with codes on the list and none ticked, Save is off and says why.
+  const noneTicked = rows.length > 0 && selectedIds.size === 0;
+
   const handleSave = async () => {
-    if (!hasChanges || saving) return;
+    if (!hasChanges || saving || noneTicked) return;
     setSaving(true);
     try {
-      const results = await Promise.allSettled(
-        changedIds.map(({ id, is_active }) => updateEntityBillAccount(id, { is_active })),
-      );
+      // Ticks ON first, then OFF: unticking A while ticking B must never pass through a
+      // moment with nothing ticked, or the server's at-least-one rule refuses the untick.
+      const turningOn = changedIds.filter((c) => c.is_active);
+      const turningOff = changedIds.filter((c) => !c.is_active);
+      const send = (batch: typeof changedIds) =>
+        Promise.allSettled(batch.map(({ id, is_active }) => updateEntityBillAccount(id, { is_active })));
+      const onResults = await send(turningOn);
+      const offResults = await send(turningOff);
+      const sent = [...turningOn, ...turningOff];
+      const results = [...onResults, ...offResults];
       // Each row that went through IS saved, whatever happened to the others: the saved set
       // follows them, so the leave guard and "Discard changes" measure from what the server holds.
       const next = new Set(savedIds);
       results.forEach((result, i) => {
         if (result.status !== "fulfilled") return;
-        const { id, is_active } = changedIds[i];
+        const { id, is_active } = sent[i];
         if (is_active) next.add(id);
         else next.delete(id);
       });
       setSavedIds(next);
-      const failed = results.filter((result) => result.status === "rejected");
+      const failed = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
       if (failed.length === 0) {
         showToast("Payment settings updated successfully", "success");
       } else {
         console.error("[payment settings] some account codes did not save", failed);
-        showToast("Some of those changes didn't save. Mind trying again?", "error");
+        // A refusal the server explained (409: "Keep at least one account code ticked.")
+        // is shown in its own words; anything else gets the generic retry line.
+        const refused = failed.find((f) => f.reason instanceof ApiError && f.reason.status === 409);
+        showToast(
+          refused ? (refused.reason as ApiError).message : "Some of those changes didn't save. Mind trying again?",
+          "error",
+        );
       }
     } finally {
       setSaving(false);
@@ -280,9 +297,12 @@ export function AccountCodeSettings() {
 
       {expanded ? (
         <div className="mt-3 flex w-full flex-col gap-3">
-          <button type="button" onClick={handleSave} disabled={saving || readOnly} title={loading ? undefined : isViewOnly ? "Hmm, I can't let you in there. You have view-only access." : readOnly ? "That task is reserved for our Accountants and Admins." : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
+          <button type="button" onClick={handleSave} disabled={saving || readOnly || noneTicked} aria-describedby={noneTicked && !readOnly ? "settings-account-none-ticked" : undefined} title={loading ? undefined : isViewOnly ? "Hmm, I can't let you in there. You have view-only access." : readOnly ? "That task is reserved for our Accountants and Admins." : undefined} className="box-border h-12 w-full cursor-pointer rounded-lg bg-secondary text-base font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm">
             {saving ? "Saving…" : "Save Changes"}
           </button>
+          {noneTicked && !readOnly ? (
+            <p id="settings-account-none-ticked" className="-mt-1 text-sm text-primary/60">Pick at least one account code.</p>
+          ) : null}
         </div>
       ) : null}
     </div>

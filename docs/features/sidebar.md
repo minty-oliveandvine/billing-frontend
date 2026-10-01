@@ -40,7 +40,7 @@ package will take as injection; the lift deletes the copies and keeps the host.
 |---|---|
 | the person | My Profile, in place |
 | Select Entity | Minty's `/entity` (minty-web's list wherever the hub is on), through `/entity/<id>/enter` |
-| Manage subscriptions (only while `NEXT_PUBLIC_SUBSCRIPTION_ENABLED`) | minty-web's portal, through Minty's `/handoff/minty-web` |
+| Manage subscriptions (always; no switch since 2026-10-01) | minty-web's portal, through Minty's `/handoff/minty-web` |
 | Petty Cash › Dashboard, Reports (company has Petty Cash) | Minty, through `/entity/<id>/enter` |
 | Payment Request › Bills | `/` |
 | **Settings** | **this app's own `/settings`** — Settings opens the settings of the app it is pressed in (the user's call, 2026-09-30); minty-web's menu keeps its module page |
@@ -56,21 +56,24 @@ The same reads minty-web makes, with this app's token:
 - Edit → Save sends only what changed (`PATCH /api/me/profile`); Flask's refusal sentence is
   shown in the card; the header's initials change at once. PASSWORD · Change opens the Xero
   account page.
-- The **Subscriptions Overview** (only while subscriptions are on): minty-billing-api's
-  `GET /api/me/subscriptions` (`NEXT_PUBLIC_BILLING_API_URL`, default `http://localhost:8004`),
-  the same figures as minty-web's portal; a 404 hides the card; *Manage Subscription* goes to
-  minty-web's portal. (This app's own portal pages still read Flask's older `/api/me/*`.)
+- The **Subscriptions Overview**: minty-billing-api's `GET /api/me/subscriptions`
+  (`NEXT_PUBLIC_BILLING_API_URL`, default `http://localhost:8004`), the same figures as
+  minty-web's portal; a failed read (a 404 included - there is no dark switch since 2026-10-01)
+  shows the card's error with Try again; *Manage Subscription* goes to minty-web's portal. Its
+  types (`PortalEntity`, `PortalModule`) are minty-web's, in
+  `features/subscription/api/payerSubscriptions.ts`.
 - A 401 is refreshed once (`refreshToken`), then the browser goes back to Minty
   (`redirectToLogin`); the initials' read never moves the page.
 
-The old `/profile` page (`MyProfileContent.tsx`) stays until Minty's `/profile` router stops
-sending anyone to it (`MINTY_WEB_HUB` removed - see [payer-portal.md](payer-portal.md)); it
-simply wears the new header.
+This app has no profile PAGE since 2026-10-01: `/profile` and the old portal addresses forward
+to minty-web through Minty ([payer-portal.md](payer-portal.md)). Where the initials or the
+menu's name are drawn outside the drawer, they are plain links to Minty's `/profile`
+(`links.profile`), which opens minty-web's.
 
 ## Tests
 
 `e2e/05_sidebar.spec.ts` (Flask's profile and the billing API stubbed): the initials open My
 Profile (440 px, plan line, role, the overview's figures, *Manage Subscription*'s way), ‹ and
 Escape; the menu's links from here, Settings = `/settings`; a save sends only what changed and
-the header follows; a refusal shown in the card; a dark API draws no card; Logout clears the
-cookies and leaves for Minty's `/logout`.
+the header follows; a refusal shown in the card; a failed subscriptions read shows the card's
+error and Try again re-reads; Logout clears the cookies and leaves for Minty's `/logout`.

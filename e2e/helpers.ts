@@ -76,16 +76,6 @@ export function moneyRegex(amount: number): RegExp {
 }
 
 /**
- * The mode the stack under test runs in. ``E2E_SUBSCRIPTIONS=0`` says the backends were
- * started with ``SUBSCRIPTION_ENABLED=0`` (subscriptions dark, the cutover state); unset
- * or ``1`` means live. Specs that show different screens in the two states branch on it.
- */
-export function subscriptionsDark(): boolean {
-  const raw = (process.env.E2E_SUBSCRIPTIONS ?? '1').trim().toLowerCase();
-  return raw === '0' || raw === 'false' || raw === 'off';
-}
-
-/**
  * The e2e shop is connected to a real Xero organisation (a Demo Company, linked by hand) when
  * ``E2E_XERO=1``: 04_xero_publish runs, and the supplier is one of the organisation's real
  * contacts rather than the seed's placeholder (scripts/e2e_seed.py in Minty leaves a connected

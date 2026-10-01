@@ -8,7 +8,8 @@
  * The token carries neither (Flask mints only ids and flags), so they are read once per token
  * from Flask's `GET /api/me/profile` and kept here. DECORATION, and treated as such: a read
  * that fails leaves the badge empty and never moves the page (`onUnauthorized: "reject"`) -
- * a lapsed token is the page's own reads' business. My Profile calls `primeViewer` after a
+ * a lapsed token is the page's own reads' business - but it says so on the console, so a badge
+ * that is missing is never a mystery. My Profile calls `primeViewer` after a
  * save, so the header and menu show the new name at once instead of the old one until the
  * next token.
  *
@@ -54,8 +55,10 @@ function ensureLoaded() {
         notify();
       }
     })
-    .catch(() => {
-      // Decoration: no badge beats a broken page. The page's own reads say what went wrong.
+    .catch((err: unknown) => {
+      // Decoration: no badge beats a broken page - but never a silent one. The page carries on
+      // without the name; the console says why it is missing.
+      console.error("[viewer] the name and initials did not load", err);
       if (cache === entry) cache = { token, viewer: null, loading: false };
     });
 }

@@ -20,12 +20,11 @@ export function buildMintyEnterUrl(nextPath?: string): string {
 }
 
 /**
- * "My Profile" - through Minty's `/profile`, the one route that decides WHICH profile opens:
- * minty-web's when Minty's `MINTY_WEB_HUB` is on, this app's `/profile` otherwise. Every "open
- * my profile" link here goes this way, so the switch is flipped in one place. Opened inside a
- * company it names it (`entity_id`) and says it came from this app (`from=bills`, so the back
- * arrow returns here), entering through `/entity/<id>/enter` so a Minty session that lapsed
- * while this app's longer token lived is re-established from that token on the way.
+ * "My Profile" - through Minty's `/profile`, which opens minty-web's My Profile (this app has no
+ * profile page since 2026-10-01). Opened inside a company it names it (`entity_id`) and says it
+ * came from this app (`from=bills`, so the back arrow returns here), entering through
+ * `/entity/<id>/enter` so a Minty session that lapsed while this app's longer token lived is
+ * re-established from that token on the way.
  */
 export function buildMintyProfileUrl(): string {
   const auth = getAuth();
@@ -33,11 +32,8 @@ export function buildMintyProfileUrl(): string {
     const qs = new URLSearchParams({ entity_id: auth.entityId, from: "bills" });
     return buildMintyEnterUrl(`/profile?${qs.toString()}`);
   }
-  return MINTY_PROFILE_URL;
+  return `${MINTY_MODULE_URL}/profile`;
 }
-
-/** The profile with no company in context - also what a server render links to. */
-export const MINTY_PROFILE_URL = `${MINTY_MODULE_URL}/profile`;
 
 function mintyPathFromTemplate(template: string, entityId: string): string {
   return template.replace(/\{entityId\}/g, entityId);

@@ -206,9 +206,6 @@ export function ModuleNotActive({
  * a paying customer out of a module they own. This gate is a signpost for the ordinary
  * case, not the security boundary — the boundary is the backend, which checks entity
  * membership and entitlements on every call regardless of what this decides.
- *
- * NOT for the profile pages. Those describe the PERSON, span every company they pay for,
- * and are reached from the entity list with no company selected at all.
  */
 export function ModuleGate({ children }: { children: ReactNode }) {
   const { billingEnabled } = useEntitlements();

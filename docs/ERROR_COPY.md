@@ -22,12 +22,16 @@ House fallback for unknown causes:
 
 ## The mechanism
 
-Two clients, both normalising, both in `lib/`:
+Two clients, both normalising:
 
 | File | Talks to | Error type |
 |---|---|---|
 | `lib/api.ts` | the Django billing backend (`API_BASE/api/v1`) | `ApiError` |
-| `lib/payerPortal.ts` | the Minty Flask origin | `PortalError` |
+| `components/ui/sidebarHost.ts` (`mintyFetch`, `billingApiFetch`) | Flask's `/api/me/profile` and minty-billing-api's `/api/me/subscriptions` - the sidebar's reads | `ApiError` (the backend's `error` sentence, else `HOUSE_FALLBACK`) |
+
+`lib/subscriptionNotice.ts` (Flask's subscription notice) is deliberately silent: a failed
+notice shows nothing and never throws. This app's own payer-portal client (`lib/payerPortal.ts`,
+`PortalError`) was deleted with the portal pages on 2026-10-01.
 
 `resolveApiErrorMessage` decides what a user sees. It shows the server's own
 `detail` only when that text survives two guards:
@@ -52,7 +56,7 @@ scrubbed of. Match on `detail`, render `message`.
 
 ## When you add a `fetch()`
 
-Go through `apiFetch` / `portalGet` / `portalPost`. If you must catch directly,
+Go through `apiFetch` (or the sidebar host's `mintyFetch` / `billingApiFetch`). If you must catch directly,
 narrow to `ApiError`:
 
 ```ts
@@ -66,6 +70,6 @@ err instanceof ApiError ? err.message : "I couldn't load that. Mind trying again
 
 ## Deliberate exceptions
 
-`components/profile/AddPaymentMethodModal.tsx` shows Stripe.js `error.message`
-verbatim. The issuer's decline text is the only account of what actually
-happened, and it is written for cardholders. See the comment there.
+None left here. The one there was - the card dialog showing Stripe.js `error.message`
+verbatim, the issuer's decline text being the only account of what happened - left with the
+payer portal for minty-web on 2026-10-01.

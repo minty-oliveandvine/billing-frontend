@@ -1,4 +1,4 @@
-// Browser tests for the payment-request module and the payer portal. They run against a stack
+// Browser tests for the payment-request module, its settings page and the sidebar. They run against a stack
 // that is ALREADY UP (Next :3000, billing-backend :8000, Minty :5001) -- nothing is started here,
 // for the reasons onboarding/e2e gives. See e2e/README.md.
 import { defineConfig, devices } from '@playwright/test';

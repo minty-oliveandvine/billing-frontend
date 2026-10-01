@@ -20,7 +20,6 @@ import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import { clearAuth, getAuth, isTokenExpiringSoon, redirectToLogin, refreshToken } from "@/lib/auth";
 import { getModuleClaims } from "@/lib/moduleClaims";
 import { buildMintyEnterUrl, buildMintyProfileUrl, MINTY_MODULE_URL } from "@/lib/mintyUrls";
-import { subscriptionsEnabled } from "@/lib/subscriptions";
 
 /** minty-billing-api - the Subscriptions Overview's read. Read statically so Next inlines it. */
 const BILLING_API_URL = (process.env.NEXT_PUBLIC_BILLING_API_URL ?? "http://localhost:8004").replace(/\/+$/, "");
@@ -56,9 +55,6 @@ export function moduleAccess(): ModuleAccess {
   const claims = getModuleClaims();
   return { pettyCash: claims.pettyCashEnabled, billing: claims.billingEnabled };
 }
-
-/** The subscription feature's switch - this app's mirror of Minty's (`lib/subscriptions.ts`). */
-export const SUBSCRIPTIONS_ENABLED = subscriptionsEnabled();
 
 /** Where each item of the menu (and My Profile) leads FROM THIS APP. */
 export const links = {

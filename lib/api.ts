@@ -1,14 +1,12 @@
 import {
   type AuthInfo,
   getAuth,
-  getEmailFromToken,
   isTokenExpired,
   isTokenExpiringSoon,
   redirectToLogin,
   refreshToken,
 } from "./auth";
 import { compressImage } from "./compressImage";
-import { findEmailAddressInJson } from "./extractEmail";
 import { API_BASE } from "./apiBase";
 
 //  ── Error ────────────────────────────────────────────────────────────
@@ -100,8 +98,8 @@ function readsAsProse(message: string): boolean {
   if (!text || text.length > 300) return false;
   if (/[{}[\]<>]/.test(text)) return false;
   if (/traceback|exception|__|null,/i.test(text)) return false;
-  // A bare machine code (`invalid_state`) is not a sentence. Borrowed from
-  // payerPortal.ts, which has guarded against these since it was written.
+  // A bare machine code (`invalid_state`) is not a sentence. Borrowed from the old
+  // payer-portal client (deleted 2026-10-01), which guarded against these from the start.
   if (/^[a-z0-9_.:-]+$/.test(text)) return false;
   return /\s/.test(text);
 }
@@ -560,95 +558,6 @@ export type CurrencyInfo = {
   is_active: boolean;
 };
 
-export type AuthMeUser = {
-  first_name?: string | null;
-  last_name?: string | null;
-  email?: string | null;
-  email_verified?: boolean | null;
-  is_email_verified?: boolean | null;
-};
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v != null && typeof v === "object" && !Array.isArray(v);
-}
-
-export function normalizeAuthMeResponse(data: unknown): AuthMeUser {
-  if (Array.isArray(data) && data.length > 0) {
-    return normalizeAuthMeResponse(data[0]);
-  }
-  if (!isRecord(data)) return {};
-
-  const layers: Record<string, unknown>[] = [data];
-  const addLayer = (v: unknown) => {
-    if (isRecord(v)) layers.push(v);
-  };
-  addLayer(data.user);
-  addLayer(data.data);
-  if (isRecord(data.data)) {
-    const inner = data.data as Record<string, unknown>;
-    addLayer(inner.user);
-    addLayer(inner.attributes);
-    addLayer(inner.profile);
-  }
-  addLayer(data.result);
-  addLayer(data.payload);
-  addLayer(data.profile);
-  addLayer(data.account);
-
-  const pickStr = (keys: string[]): string | null => {
-    for (const key of keys) {
-      for (const layer of layers) {
-        const v = layer[key];
-        if (typeof v === "string") {
-          const t = v.trim();
-          if (t.length > 0) return t;
-        }
-      }
-    }
-    return null;
-  };
-
-  const pickBool = (keys: string[]): boolean | null => {
-    for (const key of keys) {
-      for (const layer of layers) {
-        const v = layer[key];
-        if (typeof v === "boolean") return v;
-      }
-    }
-    return null;
-  };
-
-  const directEmail =
-    pickStr(["email", "user_email", "userEmail", "mail", "primary_email", "contact_email", "email_address", "e_mail"]) ??
-    (() => {
-      const u = pickStr(["username", "user_name", "login"]);
-      return u && u.includes("@") ? u : null;
-    })();
-
-  const emailFromTree = directEmail ?? findEmailAddressInJson(data);
-
-  return {
-    first_name: pickStr(["first_name", "firstName", "given_name", "givenName"]),
-    last_name: pickStr(["last_name", "lastName", "family_name", "familyName", "surname"]),
-    email: emailFromTree,
-    email_verified: pickBool(["email_verified", "emailVerified"]),
-    is_email_verified: pickBool(["is_email_verified", "isEmailVerified"]),
-  };
-}
-
-function mergeEmailFromJwtIfMissing(base: AuthMeUser): AuthMeUser {
-  if (!base.email?.trim()) {
-    const fromJwt = getEmailFromToken();
-    if (fromJwt) return { ...base, email: fromJwt };
-  }
-  return base;
-}
-
-export async function fetchAuthMe(): Promise<AuthMeUser> {
-  const raw = await apiFetch<unknown>("/auth/me");
-  return mergeEmailFromJwtIfMissing(normalizeAuthMeResponse(raw));
-}
-
 /** ISO code of the entity's selected currency (entities.currency_id ->
  * currency_info.iso_code); currency_code is "" when the entity has none. */
 export function fetchEntityCurrency(): Promise<{ currency_code: string }> {
@@ -1044,45 +953,6 @@ export async function logoutSession(): Promise<void> {
   } catch {
     // proceed with local logout even if the server call fails
   }
-}
-
-export type DeactivateAccountResponse = {
-  detail: string;
-};
-
-/**
- * Signs the user out of Minty for good — the ACCOUNT, not one company.
- *
- * Deactivates rather than deletes: everything they recorded stays attributed to them,
- * and the account is switched off so it can no longer sign in.
- *
- * Allowed to throw, unlike `logoutSession`. The server refuses while the user's card
- * pays for any company, and that refusal is a 422 naming them, written for a person.
- * `ApiError` passes `detail` through untouched, so the caller shows it as-is.
- */
-export function deactivateAccount(): Promise<DeactivateAccountResponse> {
-  return apiFetch<DeactivateAccountResponse>("/profile/me", { method: "DELETE" });
-}
-
-export type ProfileUpdatePayload = {
-  email: string;
-  first_name: string;
-  last_name: string;
-};
-
-export type ProfileUpdateResponse = {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  username: string;
-};
-
-export function updateProfile(payload: ProfileUpdatePayload): Promise<ProfileUpdateResponse> {
-  return apiFetch<ProfileUpdateResponse>("/profile/me", {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
 }
 
 // ── Xero status ──────────────────────────────────────────────────────

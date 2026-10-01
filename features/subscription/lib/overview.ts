@@ -2,7 +2,7 @@
 // lib/subscriptionSummary.ts) that My Profile's Subscriptions Overview draws (2026-09-30);
 // lifted into @minty/shared at Part 3 step 4; change all three (minty-web, here, Flask's port).
 
-import type { PortalEntity, PortalModule } from "@/lib/payerPortal";
+import type { PortalEntity, PortalModule } from "@/features/subscription/api/payerSubscriptions";
 
 export const ACTIVE_SUBSCRIPTIONS = "Active subscriptions";
 export const TRIAL_ENDING = "Trial ending";

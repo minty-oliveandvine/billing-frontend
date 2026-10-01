@@ -21,12 +21,11 @@ import { resolveMintyModuleUrl } from "./mintyEnv";
 
 export type NoticeSeverity = "critical" | "warning" | "info";
 
-export type NoticeKind =
-  | "past_due"
-  | "needs_card"
-  | "needs_consent"
-  | "pending_cancel"
-  | "trial_ending";
+/**
+ * The two kinds the engines still emit. No trial kind any more (`trial_ending`, `needs_card`,
+ * `needs_consent` were retired - the user's decision, 2026-10-01).
+ */
+export type NoticeKind = "past_due" | "pending_cancel";
 
 export type SubscriptionNoticeItem = {
   kind: NoticeKind;

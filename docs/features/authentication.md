@@ -2,7 +2,8 @@
 
 Nobody signs in here. Minty (Flask) authenticates the person, mints a short-lived JWT and
 sends the browser to this app; everything after that is carrying that token to
-billing-backend, and — for the payer portal — straight to Minty. The system-wide picture
+billing-backend, and — for the subscription notice and the sidebar — straight to Minty and
+minty-billing-api. The system-wide picture
 is `Minty/docs/features/authentication.md`; billing-backend's verification is
 `billing-backend/docs/features/authentication.md`.
 
@@ -11,11 +12,16 @@ is `Minty/docs/features/authentication.md`; billing-backend's verification is
 Minty links **Payments** to `/landing?token=<jwt>&entity_id=&entity_name=&next=&from=`
 (`app/landing/page.tsx`). The page stores the token, the entity id and name in cookies
 (`lib/auth.ts`: `billing_token`, `billing_entity_id`, `billing_entity_name`, `SameSite=Lax`,
-`Secure` on https, **8 hours**), records where the person came from (`billing_from`,
-`bills` or `pettycash` — provenance for the "back" links only, never a permission), and
-forwards to `next` (the bill list by default). Without a token the middleware sends every
-page except `/landing` and `/module-selection` to `/module-selection`
-(`middleware.ts`), which offers the way back into Minty.
+`Secure` on https, **8 hours**) and forwards to `next` (the bill list by default); `from` is
+ignored since 2026-10-01 (its `billing_from` cookie served only the deleted profile pages' back
+links). Without a token the middleware sends every page except `/landing` and
+`/module-selection` to `/module-selection` (`middleware.ts`), which offers the way back into
+Minty.
+
+The old profile and payer-portal addresses (`/profile/*`) are forwarded by the middleware
+BEFORE that check - an old email link arrives with no cookie - to minty-web through Minty:
+`/profile` to Flask's `/profile?from=bills` (its profile router), the portal pages to Flask's
+`/handoff/minty-web?next=<minty-web page>`, the query string kept ([payer-portal.md](payer-portal.md)).
 
 The cookies are readable by script on purpose (the app itself attaches the token); they
 are cleared client-side on logout and by `POST /api/auth/logout` on the backend. **Logout** (the
@@ -45,14 +51,16 @@ edit; accountant / admin / super_admin (the *elevated* roles) also record paymen
 return, void and publish. The backend refuses the rest regardless
 (`billing-backend/core/permissions.py`).
 
-## The payer portal talks to Minty directly
+## The subscription notice talks to Minty directly
 
-`/profile/subscriptions`, `/profile/billing`, `/profile/invoices` and the subscription
-notice fetch Minty's `/api/me/*` with the same billing JWT (`lib/payerPortal.ts`,
-`lib/subscriptionNotice.ts`; the origin from `lib/mintyEnv.ts`): Minty signed it, so
-Minty verifies it. No entity id travels — the endpoints filter on the payer in the token.
-While subscriptions are dark those endpoints answer 404, so the portal is hidden
-([payer-portal.md](payer-portal.md)).
+The landing page's subscription notice (`lib/subscriptionNotice.ts`,
+`components/SubscriptionNoticeModal.tsx`) fetches Flask's
+`GET /api/entity/<id>/subscription-notice` with the same billing JWT (the origin from
+`lib/mintyEnv.ts`): Minty signed it, so Minty verifies it. Two kinds come back, `past_due` and
+`pending_cancel` (no trial kind since 2026-10-01). Its button opens `settings_path` - a Flask path
+with its own query, e.g. `/handoff/minty-web?next=%2Fsubscription%2Fentities%2F<id>%2Fmodules&entity_id=<id>`
+- through `/entity/<id>/enter` (`buildMintyEnterUrl`, which URL-encodes it whole as `next`). A
+failed notice shows nothing.
 
 ## The sidebar talks to Flask and minty-billing-api directly
 
@@ -65,7 +73,7 @@ with this app's token (`components/ui/sidebarHost.ts`; [sidebar.md](sidebar.md))
 `NEXT_PUBLIC_MODULE2_BACKEND_URL` (billing-backend), `NEXT_PUBLIC_MODULE1_URL` or
 `NEXT_PUBLIC_APP_ENV` + `NEXT_PUBLIC_MODULE1_URL_<ENV>` (Minty — see the apex/www trap in
 the `README`), `NEXT_PUBLIC_BILLING_API_URL` (minty-billing-api, default
-`http://localhost:8004`), `NEXT_PUBLIC_SUBSCRIPTION_ENABLED`; all inlined at build time.
+`http://localhost:8004`); all inlined at build time.
 
 ## Tests
 

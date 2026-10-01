@@ -161,15 +161,31 @@ test.describe('the sidebar', () => {
     await expect(profile.getByRole('textbox', { name: 'Email' })).toHaveValue('taken@example.test');
   });
 
-  test('with the subscription API dark the overview is not drawn at all', async ({ page }) => {
+  test('a failed subscriptions read - a 404 too, there is no dark switch - says so in the card, and Try again re-reads', async ({ page }) => {
     const creds = requireCredentials();
-    await stubReads(page, creds, { status: 404, body: { error: 'not_found' } });
+    let reads = 0;
+    let answer = { status: 404, body: { error: 'not_found' } as unknown };
+    await stubReads(page, creds);
+    // registered after stubReads, so it answers first (Playwright runs the newest route first)
+    await page.route(`${BILLING_API_URL}/api/me/subscriptions**`, (route: Route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      reads += 1;
+      return route.fulfill({ status: answer.status, headers: CORS, contentType: 'application/json', body: JSON.stringify(answer.body) });
+    });
     await handoff(page, creds, '/');
 
     await page.getByRole('banner').getByRole('button', { name: 'Olive Vine, My Profile', exact: true }).click();
     const profile = page.getByRole('region', { name: 'My Profile', exact: true });
     await expect(profile.getByRole('heading', { name: 'Olive Vine' })).toBeVisible();
-    await expect(profile.getByRole('region', { name: 'Subscriptions Overview' })).toHaveCount(0);
+    const card = profile.getByRole('region', { name: 'Subscriptions Overview' });
+    await expect(card.getByRole('alert')).toHaveText(/Your subscriptions didn't load\. Mind trying again\?/);
+    await expect(card.getByRole('link', { name: 'Manage Subscription' })).toHaveCount(0);
+
+    const before = reads;
+    answer = { status: 200, body: SUBSCRIPTIONS };
+    await card.getByRole('button', { name: 'Try again' }).click();
+    await expect(card).toContainText('Active subscriptions1entity');
+    expect(reads).toBeGreaterThan(before);
   });
 
   test("Logout ends the session everywhere: this app's cookies go, then Minty's /logout", async ({ page }) => {

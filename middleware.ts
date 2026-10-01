@@ -1,12 +1,48 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { isPortalPath, subscriptionsEnabled } from "@/lib/subscriptions";
+import { resolveMintyModuleUrl } from "@/lib/mintyEnv";
 
 const AUTH_COOKIE = "billing_token";
 
+/**
+ * This app's old profile and payer-portal pages (`/profile/*`), deleted on 2026-10-01: they live
+ * in minty-web now. Their addresses survive in emails and bookmarks, so each is FORWARDED to
+ * minty-web's page through Minty (Flask) - `/profile` to Flask's profile router (which opens
+ * minty-web's My Profile), the rest through Flask's login-gated `/handoff/minty-web`. The query
+ * string travels with it (`entity_id`, `transfer`, ...). Any other `/profile/*` address goes
+ * where `/profile` does.
+ */
+const PROFILE_FORWARDS: ReadonlyMap<string, string> = new Map([
+  ["/profile/subscriptions", "/subscription/subscriptions"],
+  ["/profile/subscriptions/incoming", "/subscription/subscriptions/incoming"],
+  ["/profile/subscriptions/subscriber", "/subscription/subscriptions/subscriber"],
+  ["/profile/billing", "/subscription/billing"],
+  ["/profile/invoices", "/subscription/billing"],
+]);
+
+/** Where an old `/profile` address goes now, or null when `pathname` is not one. */
+function profileForward(pathname: string, search: string): string | null {
+  if (pathname !== "/profile" && !pathname.startsWith("/profile/")) return null;
+  const minty = resolveMintyModuleUrl().replace(/\/+$/, "");
+  const query = search.startsWith("?") ? search.slice(1) : search;
+  // Next has already 308'd a trailing slash away (`/profile/billing/` -> `/profile/billing`).
+  const target = PROFILE_FORWARDS.get(pathname);
+  if (!target) {
+    const qs = new URLSearchParams(query);
+    qs.set("from", "bills");
+    return `${minty}/profile?${qs.toString()}`;
+  }
+  const next = query ? `${target}?${query}` : target;
+  return `${minty}/handoff/minty-web?${new URLSearchParams({ next }).toString()}`;
+}
+
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
+
+  // Before the cookie check: an old email link arrives with no cookie at all.
+  const forward = profileForward(pathname, search);
+  if (forward) return NextResponse.redirect(forward);
 
   if (
     pathname === "/module-selection" ||
@@ -21,15 +57,6 @@ export function middleware(request: NextRequest) {
   if (!token) {
     const url = request.nextUrl.clone();
     url.pathname = "/module-selection";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
-  // Subscriptions dark (lib/subscriptions.ts): the payer portal's pages go back to the
-  // profile, which shows no portal cards in that state either.
-  if (!subscriptionsEnabled() && isPortalPath(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/profile";
     url.search = "";
     return NextResponse.redirect(url);
   }

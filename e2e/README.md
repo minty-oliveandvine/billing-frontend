@@ -12,7 +12,7 @@ are missing.
 Why this exists: this app had no tests of any kind, and phase C8 of `docs/modernisation/modernisation_plan.md`
 (in the Minty repo) changes what it renders — `bill_status` (`voided → void`, dead members gone),
 `publish_state` (`not_published → draft`) and the bill payload. The status tabs, the labels on
-the action bar and the payer portal are pinned here first.
+the action bar are pinned here first.
 
 ## Credentials
 
@@ -24,9 +24,8 @@ themselves with the shared `SECRET_KEY` (see `e2e/helpers.ts` for why nothing is
 | `E2E_JWT_SECRET` | the `SECRET_KEY` shared by Minty and billing-backend |
 | `E2E_MINTY_USER` / `E2E_MINTY_ENTITY` | the identity `Minty/scripts/e2e_seed.py --print` creates — the entity has the BILL module on, synced suppliers and bill account codes |
 | `E2E_MINTY_ENTITY_NAME` | optional, default `E2E Petty Cash Shop` |
-| `E2E_BASE_URL` / `E2E_BACKEND_URL` / `E2E_FLASK_URL` | the three hosts; default the local ports, set them to the deployed hosts for a run against a deployment |
+| `E2E_BASE_URL` / `E2E_BACKEND_URL` / `E2E_FLASK_URL` | the three hosts; default the local ports, set them to the deployed hosts for a run against a deployment. `E2E_FLASK_URL` must be the Minty origin the Next server itself resolves (`lib/mintyEnv.ts`) - `03` and `05` compare links and redirects against it |
 | `E2E_BILLING_API_URL` | minty-billing-api, whose `/api/me/subscriptions` `05_sidebar` stubs (default `http://localhost:8004`) |
-| `E2E_SUBSCRIPTIONS` | `0` when the backends run with `SUBSCRIPTION_ENABLED=0` (the payer portal is dark) |
 | `E2E_XERO` | `1` when the e2e entity is connected to a Xero organisation (a Demo Company, linked by hand): `04_xero_publish` runs and the supplier is `ABC Furniture` instead of the seed's placeholder; `E2E_SUPPLIER_QUERY` / `E2E_SUPPLIER` / `E2E_BILL_ACCOUNT_CODE` override the names |
 
 Run the seed in the Minty repo before every run. Never commit any of these values.
@@ -37,13 +36,14 @@ Run the seed in the Minty repo before every run. Never commit any of these value
 |---|---|
 | `01_handoff.spec.ts` | no token → module selection; the handoff sets the cookies and opens the list; the seven status tabs; the database entitlement (not the JWT claim) decides whether the module shows |
 | `02_bill_lifecycle.spec.ts` | Add Payment dialog: save as draft (supplier and account-code pickers) → listed under Draft; Confirm without attachment/due date shows both validation alerts; the draft's detail page |
-| `03_payer_portal.spec.ts` | profile, billing accounts, invoices, manage subscriptions, settings account-code picker |
+| `03_payer_portal.spec.ts` | the old `/profile/*` addresses (the pages moved to minty-web on 2026-10-01): each answers a 307 to Minty's `/profile` or `/handoff/minty-web?next=<minty-web page>` with its query string, with and without the billing cookie; the drawer's `/profile/*.svg` assets are still served. Needs only Next |
 | `04_xero_publish.spec.ts` | `E2E_XERO=1` only: a complete request (dates, attachment) confirmed → Payment Requested → Publish from the payment actions menu → Republish offered, also after a reload — the real ACCPAY invoice, attachment upload and the Minty token hand-off |
-| `05_sidebar.spec.ts` | the sidebar copied from minty-web, over a stubbed Flask profile and billing API: initials → My Profile (440 px, plan, role, the overview), ‹ and Escape; the menu's links from here (Settings = `/settings`); a save sends only what changed and the header follows; a refusal in the card; a dark API draws no card; Logout clears the cookies and leaves for Minty's `/logout` |
+| `05_sidebar.spec.ts` | the sidebar copied from minty-web, over a stubbed Flask profile and billing API: initials → My Profile (440 px, plan, role, the overview), ‹ and Escape; the menu's links from here (Settings = `/settings`); a save sends only what changed and the header follows; a refusal in the card; a failed subscriptions read (a 404 too) shows the card's error and Try again re-reads; Logout clears the cookies and leaves for Minty's `/logout` |
+| `06_settings.spec.ts` | Payment Settings: the account-code picker offers the entity's seeded codes |
 
 ## Findings the suite records
 
-- **F5** — FIXED in phase C7 (2026-09-17): `/api/me/subscriptions` answers 200 for a payer with no companies; the spec that recorded it passes.
+- **F5** — FIXED in phase C7 (2026-09-17): `/api/me/subscriptions` answers 200 for a payer with no companies. The spec that recorded it left with this app's portal pages (2026-10-01); minty-web's suite covers the portal now.
 
 ## Not covered here
 

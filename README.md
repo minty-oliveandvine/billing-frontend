@@ -1,7 +1,9 @@
 # Billing frontend
 
-The payment-request (Module 2) app: the bill list and detail screens, publishing to Xero, and
-the payer portal under `/profile` (subscriptions, invoices, cards, incoming transfers).
+The payment-request (Module 2) app: the bill list and detail screens, publishing to Xero, Payment
+Settings (`/settings`), and the sidebar drawer (menu, My Profile panel, Subscriptions Overview)
+copied from minty-web. The profile and subscription PAGES live in minty-web since 2026-10-01; the
+old `/profile/*` addresses forward there through Minty (`middleware.ts`).
 Next.js 16 (App Router) + React 19, on **port 3000**.
 
 ```bash
@@ -13,13 +15,13 @@ People do not sign in here. Minty sends them to `/landing?token=<jwt>` and
 [`lib/auth.ts`](lib/auth.ts) keeps that token, the entity id and name in cookies; every
 call to the billing backend carries it as a bearer token.
 
-## It talks to two backends
+## What it talks to
 
 | What                                            | Service                                    | Resolved in                                                                 |
 | ----------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `/api/*` — bills, payments, Xero, payer portal  | billing-backend (Django, port 8000)        | [`lib/apiBase.ts`](lib/apiBase.ts) — `NEXT_PUBLIC_MODULE2_BACKEND_URL`, default `http://localhost:8000` |
-| links back to Minty (users, Xero, settings, logout) | Minty (Flask, port 5001)               | [`lib/mintyEnv.ts`](lib/mintyEnv.ts) — `NEXT_PUBLIC_MODULE1_URL`, else picked by `NEXT_PUBLIC_APP_ENV` (`development` / `prestaging` / `staging` / `production`), each with its own `NEXT_PUBLIC_MODULE1_URL_<ENV>` override and a hosted default |
-| the payer portal (`/profile/subscriptions`, `/profile/billing`, `/profile/invoices`) shown at all | Minty's `SUBSCRIPTION_ENABLED` switch | [`lib/subscriptions.ts`](lib/subscriptions.ts) — `NEXT_PUBLIC_SUBSCRIPTION_ENABLED`; `0` hides the three profile cards and redirects the pages to `/profile` (middleware). ON when unset, unlike the backends, so a bare `next dev` keeps the portal reachable; the deployed app is set to `0` at the cutover together with Minty and onboarding-backend, because Minty answers every `/api/me/*` call with 404 while dark |
+| `/api/*` — bills, payments, Xero                | billing-backend (Django, port 8000)        | [`lib/apiBase.ts`](lib/apiBase.ts) — `NEXT_PUBLIC_MODULE2_BACKEND_URL`, default `http://localhost:8000` |
+| links back to Minty (users, Xero, settings, logout, the `/profile/*` forwards), the subscription notice, My Profile's `/api/me/profile` | Minty (Flask, port 5001) | [`lib/mintyEnv.ts`](lib/mintyEnv.ts) — `NEXT_PUBLIC_MODULE1_URL`, else picked by `NEXT_PUBLIC_APP_ENV` (`development` / `prestaging` / `staging` / `production`), each with its own `NEXT_PUBLIC_MODULE1_URL_<ENV>` override and a hosted default |
+| the sidebar's Subscriptions Overview (`/api/me/subscriptions`) | minty-billing-api (Django, port 8004) | [`components/ui/sidebarHost.ts`](components/ui/sidebarHost.ts) — `NEXT_PUBLIC_BILLING_API_URL`, default `http://localhost:8004` |
 
 `NEXT_PUBLIC_*` is inlined at build time, so set these in the deployed environment before
 building; an unset backend URL silently means `localhost`. The three `NEXT_PUBLIC_MINTY_*_PATH`
@@ -51,7 +53,7 @@ the reason nothing is bypassed. Specs skip with a reason when a service is missi
 ## Before changing anything
 
 - [`docs/features/README.md`](docs/features/README.md) — one page per feature: how a person
-  arrives with Minty's token, the list / dialog / detail page, the payer portal.
+  arrives with Minty's token, the list / dialog / detail page, settings, the sidebar.
 - [`docs/ERROR_COPY.md`](docs/ERROR_COPY.md) — the user-facing error standard shared across the
   Minty repos. A failure is a sentence, not a status; `detail` from the backend is rendered as
   is when it reads as one.

@@ -1,73 +1,55 @@
-// The payer portal: profile, billing accounts, invoices, subscriptions. These pages live in this
-// app but read Minty's /api/me/* (the subscription tables the redesign retypes) and the payer's
-// profile; they move to minty-web in Part 2 and to the redesigned tables in Part 1 C7.
-import { expect, test } from '@playwright/test';
-import { handoff, requireCredentials, requireStack, subscriptionsDark } from './helpers';
+// The old payer portal and profile addresses (`/profile/*`). The pages were deleted on 2026-10-01
+// - they live in minty-web - and the middleware forwards every old address (emails, bookmarks)
+// to minty-web through Minty (Flask): `/profile` to Flask's profile router, the rest through
+// Flask's login-gated `/handoff/minty-web`, with the original query string. The forward comes
+// BEFORE the cookie check, so a link opened with no billing cookie goes there too.
+//
+// Only Next has to answer: the specs read the redirect, they do not follow it. E2E_FLASK_URL must
+// be the Minty origin the Next server resolves (lib/mintyEnv.ts; both default to :5001).
+import { expect, test, type APIRequestContext } from '@playwright/test';
+import { FLASK_URL, reachable } from './helpers';
 
-test.describe('payer portal while subscriptions are dark', () => {
-  test.skip(!subscriptionsDark(), 'the stack runs with subscriptions live');
+const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
 
-  test('the profile shows no portal cards and the portal pages go back to the profile', async ({ page }) => {
-    await requireStack();
-    await handoff(page, requireCredentials(), '/profile');
-    await expect(page.getByRole('heading', { name: 'Eve Tester', level: 1 })).toBeVisible();
-    for (const link of [/manage subscriptions/i, /^billing/i, /invoices/i]) {
-      await expect(page.getByRole('link', { name: link })).toHaveCount(0);
-    }
-    for (const path of ['/profile/subscriptions', '/profile/billing', '/profile/invoices']) {
-      await page.goto(path);
-      await expect(page).toHaveURL(/\/profile\/?$/);
-    }
-  });
-});
+const handoff = (next: string) => `${FLASK_URL}/handoff/minty-web?${new URLSearchParams({ next }).toString()}`;
 
-test.describe('payer portal', () => {
-  test.skip(subscriptionsDark(), 'the stack runs with subscriptions dark: the portal is hidden');
+/** Old address -> where it must go now. */
+const FORWARDS: Array<[string, string]> = [
+  ['/profile', `${FLASK_URL}/profile?from=bills`],
+  ['/profile?entity_id=abc-123', `${FLASK_URL}/profile?entity_id=abc-123&from=bills`],
+  ['/profile/subscriptions', handoff('/subscription/subscriptions')],
+  ['/profile/subscriptions?q=acme&page=2', handoff('/subscription/subscriptions?q=acme&page=2')],
+  ['/profile/subscriptions/incoming', handoff('/subscription/subscriptions/incoming')],
+  ['/profile/subscriptions/incoming?transfer=t-42', handoff('/subscription/subscriptions/incoming?transfer=t-42')],
+  ['/profile/subscriptions/subscriber?entity=e-7', handoff('/subscription/subscriptions/subscriber?entity=e-7')],
+  ['/profile/billing', handoff('/subscription/billing')],
+  ['/profile/invoices', handoff('/subscription/billing')],
+  ['/profile/no-such-page?entity_id=abc-123', `${FLASK_URL}/profile?entity_id=abc-123&from=bills`],
+];
 
-  test.beforeEach(async ({ page }) => {
-    await requireStack();
-    await handoff(page, requireCredentials(), '/profile');
-  });
+async function locationOf(request: APIRequestContext, path: string, cookie?: string): Promise<{ status: number; location: string }> {
+  const res = await request.get(path, { maxRedirects: 0, headers: cookie ? { cookie } : {} });
+  return { status: res.status(), location: res.headers()['location'] ?? '' };
+}
 
-  test('profile shows the signed-in person and the portal navigation', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Eve Tester', level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /email address/i })).toBeVisible();
-    for (const link of [/manage subscriptions/i, /^billing/i, /invoices/i]) {
-      await expect(page.getByRole('link', { name: link }).first()).toBeVisible();
-    }
-    await expect(page.getByRole('button', { name: /log out/i })).toBeVisible();
-  });
-
-  test('billing lists the payer cards with an add action', async ({ page }) => {
-    await page.goto('/profile/billing');
-    await expect(page.getByRole('heading', { name: 'Billing', level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /billing accounts/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /add billing account/i })).toBeVisible();
-    for (const col of [/payment method/i, /expiry date/i, /status/i]) {
-      await expect(page.getByRole('button', { name: col }).first()).toBeVisible();
-    }
+test.describe('old /profile addresses forward to minty-web through Minty', () => {
+  test.beforeEach(async () => {
+    test.skip(!(await reachable(`${BASE_URL}/module-selection`)), 'Next (:3000) is not answering');
   });
 
-  test('invoices page renders with export disabled when there is nothing to export', async ({ page }) => {
-    await page.goto('/profile/invoices');
-    await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible();
-    await expect(page.getByRole('button', { name: /export csv/i })).toBeDisabled();
-  });
+  for (const [from, to] of FORWARDS) {
+    test(`${from} with no billing cookie`, async ({ request }) => {
+      expect(await locationOf(request, from)).toEqual({ status: 307, location: to });
+    });
 
-  test('manage subscriptions loads for a payer with no subscriptions', async ({ page }) => {
-    // F5 (fixed in C7): the summary used to read a per-company `paid_through` from a loop that
-    // never ran for a payer with no companies, so /api/me/subscriptions answered 500.
-    await page.goto('/profile/subscriptions');
-    await expect(page.getByRole('heading', { name: /manage subscriptions/i, level: 1 })).toBeVisible();
-    await expect(page.getByRole('button', { name: /try again/i })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /sort by entity name/i })).toBeVisible();
-  });
+    test(`${from} with a billing cookie`, async ({ request }) => {
+      expect(await locationOf(request, from, 'billing_token=any-token; billing_entity_id=abc-123')).toEqual({ status: 307, location: to });
+    });
+  }
 
-  test('settings offers the payment account-code picker', async ({ page }) => {
-    await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: /payment account code/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /save changes/i })).toBeVisible();
-    // the codes seeded for the entity are offered
-    await expect(page.locator('body')).toContainText(/429|408/);
+  test('the drawer\'s own /profile assets are still served, not forwarded', async ({ request }) => {
+    const res = await request.get('/profile/person.svg', { maxRedirects: 0 });
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toContain('image/svg');
   });
 });

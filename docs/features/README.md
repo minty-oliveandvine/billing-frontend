@@ -12,6 +12,7 @@ is minty-web's). Nothing is decided here that a backend does not re-check.
 | Payment Settings (`/settings`), the maintenance page | [settings.md](settings.md) |
 | The old payer portal (`/profile/*`) — moved to minty-web on 2026-10-01; its addresses forward there | [payer-portal.md](payer-portal.md) |
 | The sidebar on every page - the menu and My Profile, copied from minty-web for `@minty/shared` | [sidebar.md](sidebar.md) |
+| Toasts - `components/Toast.tsx`, minty-web's card (white, a bold label, no colour or icon) | `Minty/docs/features/toasts.md` - the system-wide rule and the look, value for value |
 | User-facing error copy | [../ERROR_COPY.md](../ERROR_COPY.md) |
 
 Email fields take English only (2026-10-01): My Profile's email spreads `useEmailInput` from

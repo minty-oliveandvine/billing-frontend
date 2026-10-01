@@ -14,5 +14,10 @@ is minty-web's). Nothing is decided here that a backend does not re-check.
 | The sidebar on every page - the menu and My Profile, copied from minty-web for `@minty/shared` | [sidebar.md](sidebar.md) |
 | User-facing error copy | [../ERROR_COPY.md](../ERROR_COPY.md) |
 
+Email fields take English only (2026-10-01): My Profile's email spreads `useEmailInput` from
+`lib/emailInput.ts`, a copy of minty-web's. The input is `type="text" inputMode="email"`, anything
+outside printable ASCII is dropped once an IME composition ends, and the field says why. Flask
+refuses such an address again on save. See minty-web's `docs/features/README.md`.
+
 Running it and the environment variables: the repo `README.md`. Tests: `npm run test:e2e`
 (Playwright against a running stack — `e2e/README.md`; the Xero publish needs `E2E_XERO=1`). The cleanse log is in `../code_cleanse/`.

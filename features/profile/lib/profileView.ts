@@ -8,6 +8,7 @@
  * sent.
  */
 
+import { EMAIL_ASCII_HINT, hasNonAsciiEmailChar } from "@/lib/emailInput";
 import type { ProfileChanges, ProfileCompany } from "@/features/profile/api/profile";
 
 export const PAGE_TITLE = "My Profile";
@@ -55,6 +56,7 @@ export function changesFrom(
   saved: Required<ProfileChanges>,
 ): { changes: ProfileChanges; error: string | null } {
   if (!draft.email.trim()) return { changes: {}, error: EMAIL_REQUIRED };
+  if (hasNonAsciiEmailChar(draft.email)) return { changes: {}, error: EMAIL_ASCII_HINT };
   const changes: ProfileChanges = {};
   for (const key of ["first_name", "last_name", "email"] as const) {
     if (draft[key].trim() !== saved[key]) changes[key] = draft[key];

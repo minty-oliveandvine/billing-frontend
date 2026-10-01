@@ -23,6 +23,7 @@ import {
   PASSWORD,
   SAVE,
 } from "@/features/profile/lib/profileView";
+import { EMAIL_ASCII_HINT, useEmailInput } from "@/lib/emailInput";
 
 const LABEL = "text-[10px] leading-5 text-[#4b5563]";
 const VALUE = "text-sm leading-5 text-[#6b7280]";
@@ -59,6 +60,7 @@ export type DetailsCardProps = {
 
 export function DetailsCard({ user, draft, saving, error, onEdit, onCancel, onChange, onSave }: DetailsCardProps) {
   const editing = draft !== null;
+  const emailInput = useEmailInput((value) => onChange("email", value));
   return (
     <section className="relative mt-8 rounded-xl bg-white px-[19px] pb-[15px] pt-[35px]" aria-label="Your details">
       <button
@@ -115,15 +117,21 @@ export function DetailsCard({ user, draft, saving, error, onEdit, onCancel, onCh
         <div className="mt-3">
           <Row tile={<Tile src="/profile/mail.svg" width={16} height={13} />}>
             {editing ? (
-              <input
-                className={FIELD}
-                type="email"
-                aria-label="Email"
-                value={draft.email}
-                onChange={(e) => onChange("email", e.target.value)}
-                autoComplete="email"
-                maxLength={255}
-              />
+              <>
+                <input
+                  className={FIELD}
+                  {...emailInput.props}
+                  aria-label="Email"
+                  aria-describedby={emailInput.rejected ? "profile-email-hint" : undefined}
+                  value={draft.email}
+                  maxLength={255}
+                />
+                {emailInput.rejected && (
+                  <p id="profile-email-hint" className="mt-1 text-[12px] text-[#b42318]" role="status">
+                    {EMAIL_ASCII_HINT}
+                  </p>
+                )}
+              </>
             ) : (
               <p className={`${VALUE} truncate`}>
                 <span className="sr-only">Email </span>

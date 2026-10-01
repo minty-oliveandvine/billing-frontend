@@ -70,18 +70,13 @@ export function SettingsPills({ activeTab, entityId, module1Url }: SettingsPills
           const isActive = activeTab === id;
           const flaskUrl = FLASK_REDIRECT_TABS[id];
 
+          // A real link (no token in it), so Payment Settings' "Leave without saving?"
+          // (lib/leaveGuard.ts) holds it like any other way out of the page.
           if (flaskUrl) {
             return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  window.location.href = flaskUrl(module1Url, entityId);
-                }}
-                className={pillClass(isActive)}
-              >
+              <a key={id} href={flaskUrl(module1Url, entityId)} className={pillClass(isActive)}>
                 {label}
-              </button>
+              </a>
             );
           }
 

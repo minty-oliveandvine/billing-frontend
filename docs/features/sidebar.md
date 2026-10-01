@@ -13,7 +13,7 @@ the menu; 440 px for My Profile from 640 px up and the whole screen on a phone.
 ## COPIES, to be lifted into `@minty/shared`
 
 The files sit at minty-web's own paths, each headed `COPY of minty-web/<path> (2026-09-30) -
-lifted into @minty/shared at Part 3 step 4; change both`:
+lifted into @minty/shared at Part 3 step 4; change all three (minty-web, here, Flask's port)`:
 
 | File | minty-web's original |
 |---|---|
@@ -44,7 +44,7 @@ package will take as injection; the lift deletes the copies and keeps the host.
 | Petty Cash › Dashboard, Reports (company has Petty Cash) | Minty, through `/entity/<id>/enter` |
 | Payment Request › Bills | `/` |
 | **Settings** | **this app's own `/settings`** — Settings opens the settings of the app it is pressed in (the user's call, 2026-09-30); minty-web's menu keeps its module page |
-| Logout | ends the session everywhere: `POST /api/auth/logout` (presence), the cookies and the Easy view choice go, then Minty's `/logout` (the user's call, 2026-09-30 — it used to leave Minty signed in on its entity list) |
+| Logout | ends the session everywhere: `POST /api/auth/logout` (presence), the cookies and the Easy view choice go, then Minty's `/logout` (the user's call, 2026-09-30 — it used to leave Minty signed in on its entity list). While Payment Settings has unsaved ticks it **asks first** ("Leave without saving?"): nothing runs until Discard changes; Go Back stays, signed in ([settings.md](settings.md)) |
 
 ## My Profile
 
@@ -77,3 +77,5 @@ Profile (440 px, plan line, role, the overview's figures, *Manage Subscription*'
 Escape; the menu's links from here, Settings = `/settings`; a save sends only what changed and
 the header follows; a refusal shown in the card; a failed subscriptions read shows the card's
 error and Try again re-reads; Logout clears the cookies and leaves for Minty's `/logout`.
+`e2e/07_settings_leave.spec.ts`: Logout over unsaved Payment Settings asks first, and Go Back
+logs nobody out.

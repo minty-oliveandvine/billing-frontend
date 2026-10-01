@@ -18,6 +18,7 @@
 import { ApiError, logoutSession } from "@/lib/api";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
 import { clearAuth, getAuth, isTokenExpiringSoon, redirectToLogin, refreshToken } from "@/lib/auth";
+import { guardLeave } from "@/lib/leaveGuard";
 import { getModuleClaims } from "@/lib/moduleClaims";
 import { buildMintyEnterUrl, buildMintyProfileUrl, MINTY_MODULE_URL } from "@/lib/mintyUrls";
 
@@ -89,8 +90,20 @@ export function lockScroll(): () => void {
  * cookies, forget the view choice, then end the session at Minty (its `/logout` signs the person
  * out and lands on its sign-in page), so no app is left signed in behind the one that said
  * goodbye. minty-web's `lib/logout.ts`, with this app's own steps first.
+ *
+ * While Payment Settings has unsaved ticks it asks first ("Leave without saving?",
+ * `lib/leaveGuard.ts`): none of this runs until the person picks "Discard changes", and "Go Back"
+ * leaves them on the page, still signed in - the promise then never settles.
  */
-export async function logOut(): Promise<void> {
+export function logOut(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    guardLeave(() => {
+      endSession().then(resolve, reject);
+    });
+  });
+}
+
+async function endSession(): Promise<void> {
   await logoutSession();
   clearAuth();
   try {

@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchEntityBillAccounts, updateEntityBillAccount } from "@/lib/api";
+import { useLeaveGuard } from "@/lib/leaveGuard";
 import { useUserRole } from "@/lib/useUserRole";
 import { useToast } from "@/components/Toast";
+import { LeaveDialog } from "@/features/subscription/components/InterruptedDialogs";
 
 const CHECKBOX_CLASS = "checkbox-secondary-white-tick h-4 w-4 shrink-0 rounded border border-primary/40 disabled:opacity-40";
 
@@ -23,6 +26,7 @@ export function AccountCodeSettings() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const { showToast } = useToast();
   const selectAllRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +46,11 @@ export function AccountCodeSettings() {
         setSelectedIds(activeIds);
         setSavedIds(activeIds);
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        // A failed read is not an empty list: say so, rather than "No account codes yet".
+        console.error("[payment settings] the account codes did not load", err);
+        if (!cancelled) setLoadFailed(true);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -54,6 +62,12 @@ export function AccountCodeSettings() {
     }
     return false;
   }, [selectedIds, savedIds]);
+
+  // "Leave without saving?" while ticks are unsaved (lib/leaveGuard.ts). A save that went through
+  // makes `savedIds` the ticks, so `hasChanges` clears and the guard stands down; a failed one
+  // leaves `savedIds` alone, so the page still asks.
+  const discardTicks = useCallback(() => setSelectedIds(new Set(savedIds)), [savedIds]);
+  const leave = useLeaveGuard(hasChanges, discardTicks);
 
   const changedIds = useMemo(() => {
     const ids: { id: string; is_active: boolean }[] = [];
@@ -69,13 +83,26 @@ export function AccountCodeSettings() {
     if (!hasChanges || saving) return;
     setSaving(true);
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         changedIds.map(({ id, is_active }) => updateEntityBillAccount(id, { is_active })),
       );
-      setSavedIds(new Set(selectedIds));
-      showToast("Payment settings updated successfully", "success");
-    } catch {
-      showToast("Some of those changes didn't save. Mind trying again?", "error");
+      // Each row that went through IS saved, whatever happened to the others: the saved set
+      // follows them, so the leave guard and "Discard changes" measure from what the server holds.
+      const next = new Set(savedIds);
+      results.forEach((result, i) => {
+        if (result.status !== "fulfilled") return;
+        const { id, is_active } = changedIds[i];
+        if (is_active) next.add(id);
+        else next.delete(id);
+      });
+      setSavedIds(next);
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length === 0) {
+        showToast("Payment settings updated successfully", "success");
+      } else {
+        console.error("[payment settings] some account codes did not save", failed);
+        showToast("Some of those changes didn't save. Mind trying again?", "error");
+      }
     } finally {
       setSaving(false);
     }
@@ -120,6 +147,15 @@ export function AccountCodeSettings() {
 
   return (
     <div className="w-full pb-8 pt-2 sm:pt-3">
+      {/* On <body>, at z-250: above the sidebar's drawer (z-200), whose links it also guards. */}
+      {leave.open
+        ? createPortal(
+            <div data-leave-dialog="" className="relative z-[250]">
+              <LeaveDialog onDiscard={leave.discard} onStay={leave.stay} />
+            </div>,
+            document.body,
+          )
+        : null}
       {/* Two different reasons the controls are dead, and they need different
           sentences — same split the Module section makes in Minty.
           Held until `loading` clears: the role arrives from the cookie one frame
@@ -189,6 +225,8 @@ export function AccountCodeSettings() {
                   ))}
                 </div>
               </>
+            ) : loadFailed ? (
+              <p role="alert" className="py-8 text-center text-sm text-red-600">I couldn&apos;t load your account codes. Mind refreshing the page?</p>
             ) : rows.length === 0 ? (
               <p className="py-8 text-center text-sm text-primary/60">No account codes yet - I&apos;ll show them here once Xero&apos;s connected.</p>
             ) : filtered.length === 0 ? (

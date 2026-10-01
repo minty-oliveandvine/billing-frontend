@@ -6,12 +6,63 @@ app for minty-web.
 ## `/settings` (`components/settings/`)
 
 The settings pills mirror Minty's tabs (Users, Entity & Integration, Petty Cash
-Settings, Payment Settings — `SettingsPills.tsx`). Only **Payment Settings** lives here:
+Settings, Payment Settings, Module — `SettingsPills.tsx`). Only **Payment Settings** lives here:
 the account-code picker (`AccountCodeSettings.tsx` — which of the entity's bill account
 codes are offered, default and order; elevated roles, backed by
-`/api/entity-bill-accounts/*`). The other three link back to Minty's settings page for
-the entity (`lib/mintyUrls.ts`), with a placeholder while unresolved. The sidebar's
-**Settings** opens this page ([sidebar.md](sidebar.md)).
+`/api/entity-bill-accounts/*`). The other four are plain links (`<a href>`, no token in
+them) to Minty's settings pages for the entity (`lib/mintyUrls.ts`; Module hands over to
+minty-web), with a placeholder while unresolved. The sidebar's **Settings** opens this page
+([sidebar.md](sidebar.md)).
+
+### "Leave without saving?" (2026-10-01)
+
+While Payment Settings has ticks not saved yet (`hasChanges` in `AccountCodeSettings.tsx`),
+every way out of the page asks first (`lib/leaveGuard.ts`, `useLeaveGuard`): minty-web's
+`LeaveDialog` (Figma A-11), portaled to `<body>` at z-250 so it sits above the sidebar's drawer
+(z-200).
+
+- **Discard changes** puts the ticks back to the saved set and goes where the person was going:
+  the same link is clicked again, so each keeps its own way (a soft move, a full load, the drawer
+  closing).
+- **Go Back**, Escape and the backdrop close the dialog; the ticks stay. Escape answers the
+  dialog alone (caught on `window` on the way down): a drawer open under it stays open.
+- A successful save clears `hasChanges`, so nothing asks; a failed save keeps it. A save that
+  partly went through moves the saved set by each row that did (`Promise.allSettled`), so the
+  guard and "Discard changes" measure from what the server holds, and the toast says some
+  changes didn't save.
+- A reload, a typed address or a closed tab get the browser's own prompt (`beforeunload`, on
+  only while dirty and removed before Discard leaves, so the two never both show).
+- **Logout** (the sidebar's and My Profile's, `sidebarHost.ts` `logOut()`) asks the same way
+  before anything runs; Go Back leaves the person on the page, signed in (`guardLeave`).
+
+Which clicks ask - a left click with no modifier key on an `<a href>`, unless:
+
+- the link is inside the dialog, or carries `data-sidebar-open` (Flask's openers);
+- it has `download`, or a `target` other than `_self`;
+- its `href` attribute starts with `#` or `javascript:`, or its address is not http(s);
+- it is a fragment of this very page (`/settings#x`).
+
+A link to exactly this address (the sidebar's Settings on `/settings`) DOES ask: it reloads.
+
+**Known gap:** the browser's Back and Forward inside this app are soft navigations (no click, no
+`beforeunload`), so they leave without asking.
+
+**The dialog is a COPY** of minty-web's, at its own paths, each headed `COPY of minty-web/<path>
+... change all three (minty-web, here, Flask's port: Minty static/js/minty_dialog.js +
+static/css/minty_dialog.css)`: `features/subscription/components/ModalFrame.tsx`,
+`ConfirmDialog.tsx` (its image table trimmed to `public/portal/minty-dont.png`),
+`InterruptedDialogs.tsx` (`LeaveDialog` only) and `features/subscription/lib/changeModal.ts`
+(the two types). `--ink-soft` in `app/globals.css` is minty-web's token. Change all three.
+
+A failed read of the codes says so ("I couldn't load your account codes. Mind refreshing the
+page?", logged on the console) instead of "No account codes yet" (fixed 2026-10-01; it was
+swallowed).
+
+**The header on a phone** (`components/layout/Header.tsx`, fixed 2026-10-01): the company name's
+cap is a plain `max-w-[6.5rem]`, not `max-w-[min(100%,6.5rem)]` - a percentage cap counts as no
+cap while the `shrink-0` block around it is sized, so at 375px a long name made that block 336px
+wide, over "‹ Payments" (which could not be tapped). minty-web's `AppHeader` and Flask's port
+were fixed the same way.
 
 ## `/maintenance`
 
@@ -22,3 +73,8 @@ maintenance gate of its own yet; a real `MAINTENANCE_MODE` is a Part 2 deliverab
 ## Tests
 
 `e2e/06_settings.spec.ts`: the account-code picker offers the entity's seeded codes.
+
+`e2e/07_settings_leave.spec.ts` (the code list stubbed): nothing changed leaves at once; a tick
+held by the back link (Go Back and Escape stay); a Flask pill goes after Discard with no browser
+prompt; the sidebar's Settings asks above the drawer, Escape closes only the dialog, and Discard
+reloads the saved ticks; Logout asks, and Go Back logs nobody out.

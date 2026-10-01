@@ -93,7 +93,10 @@ export function Header({
               corporate_fare
             </span>
           </span>
-          <span className="min-w-0 max-w-[min(100%,6.5rem)] truncate text-sm font-medium text-primary sm:max-w-[9rem] sm:text-base md:max-w-[14rem] lg:max-w-md">
+          {/* A plain 6.5rem, not min(100%,6.5rem): a percentage cap counts as no cap while the
+              shrink-0 block around it is sized, so on a phone a long name made it cover the way
+              back (fixed in minty-web's AppHeader and Flask's port too). */}
+          <span className="min-w-0 max-w-[6.5rem] truncate text-sm font-medium text-primary sm:max-w-[9rem] sm:text-base md:max-w-[14rem] lg:max-w-md">
             {companyName}
           </span>
           {/* The sidebar's two doors (components/ui/Sidebar.tsx, copied from minty-web): the

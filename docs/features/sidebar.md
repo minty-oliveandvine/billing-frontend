@@ -27,7 +27,7 @@ lifted into @minty/shared at Part 3 step 4; change all three (minty-web, here, F
 
 **Everything that is this app's lives in ONE file, `components/ui/sidebarHost.ts`** — the company
 and modules in the cookie, where the items lead from here, the scroll lock (`#app-scroll-root`),
-Logout, and how Flask and minty-billing-api are reached. It is the list of what the shared
+Logout, and how Flask and minty-subscription-api are reached. It is the list of what the shared
 package will take as injection; the lift deletes the copies and keeps the host.
 
 `app/layout.tsx` composes it, as minty-web's layout does:
@@ -52,12 +52,12 @@ The same reads minty-web makes, with this app's token:
 
 - Flask's `GET /api/me/profile?entity=<company>` - the company, its plan line (Payment Request
   blue, Petty Cash amber, SuperMinty teal with the caped cat), the person's role, the details
-  card. Flask's hub routes name `FRONTEND_APP_URL` in their CORS for this.
+  card. Flask's hub routes name `PAYMENT_REQUEST_WEB_URL` in their CORS for this.
 - Edit → Save sends only what changed (`PATCH /api/me/profile`); Flask's refusal sentence is
   shown in the card; the header's initials change at once. PASSWORD · Change opens the Xero
   account page.
-- The **Subscriptions Overview**: minty-billing-api's `GET /api/me/subscriptions`
-  (`NEXT_PUBLIC_BILLING_API_URL`, default `http://localhost:8004`), the same figures as
+- The **Subscriptions Overview**: minty-subscription-api's `GET /api/me/subscriptions`
+  (`SUBSCRIPTION_API_URL`, default `http://localhost:8000`), the same figures as
   minty-web's portal; a failed read (a 404 included - there is no dark switch since 2026-10-01)
   shows the card's error with Try again; *Manage Subscription* goes to minty-web's portal. Its
   types (`PortalEntity`, `PortalModule`) are minty-web's, in

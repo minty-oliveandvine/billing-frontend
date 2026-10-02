@@ -6,7 +6,7 @@ import { getAuth } from "@/lib/auth";
 import { AccountCodeSettings } from "./AccountCodeSettings";
 import { getSettingsTabFromSearchParams, SETTINGS_TAB_LABELS, SettingsPills } from "./SettingsPills";
 import { SettingsPlaceholder } from "./SettingsPlaceholder";
-import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
+import { MINTY_MODULE_URL } from "@/lib/mintyUrls";
 
 export function SettingsContent() {
   const searchParams = useSearchParams();
@@ -21,7 +21,7 @@ export function SettingsContent() {
   return (
     <div className="mx-auto w-full max-w-[1024px] px-4 sm:px-6">
       <div className="sticky top-0 z-10 bg-white pt-3 pb-3 sm:pt-4 sm:pb-4">
-        <SettingsPills activeTab={tab} entityId={entityId} module1Url={MODULE1_URL} />
+        <SettingsPills activeTab={tab} entityId={entityId} module1Url={MINTY_MODULE_URL} />
       </div>
       {tab === "bill" ? (
         <AccountCodeSettings />

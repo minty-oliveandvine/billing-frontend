@@ -56,7 +56,7 @@ test.describe.serial('payment request lifecycle', () => {
 
   test('confirming needs an attachment and a due date - the dialog says so and stays open', async ({ page }) => {
     // Submitting for real uploads the attachment to the bucket; that path is covered by
-    // billing-backend's API tests with the storage stubbed, not by a browser against a real
+    // minty-payment-request-api's API tests with the storage stubbed, not by a browser against a real
     // bucket. What the browser owns is the validation the person sees.
     const dlg = await openAddPayment(page);
     await fillPayment(page, dlg);

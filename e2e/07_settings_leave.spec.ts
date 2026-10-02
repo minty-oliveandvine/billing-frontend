@@ -8,7 +8,7 @@
 // Flask need not serve them, and Minty's /logout and the backend's logout call are caught, so no run
 // signs anybody out. The browser's own leave prompt must never fire where our dialog asked.
 import { expect, test, type Dialog, type Page, type Route } from '@playwright/test';
-import { BACKEND_URL, FLASK_URL, handoff, requireCredentials, requireStack, type Credentials } from './helpers';
+import { PAYMENT_REQUEST_API_URL, PETTY_CASH_URL, handoff, requireCredentials, requireStack, type Credentials } from './helpers';
 
 const ACCOUNTS = [
   { code: '200', name: 'Sales', active: true },
@@ -71,16 +71,16 @@ async function arrive(page: Page): Promise<Run> {
     return route.fulfill({ status: 200, headers: cors(route), contentType: 'application/json', body: JSON.stringify(body) });
   });
   // Flask's pages (the pills' and the menu's destinations) - its API calls still reach Flask
-  await page.route(`${FLASK_URL}/**`, (route: Route) =>
+  await page.route(`${PETTY_CASH_URL}/**`, (route: Route) =>
     route.request().resourceType() === 'document'
       ? route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Flask page stub</title>' })
       : route.fallback(),
   );
-  await page.route(`${FLASK_URL}/logout**`, (route: Route) => {
+  await page.route(`${PETTY_CASH_URL}/logout**`, (route: Route) => {
     run.logouts.push(route.request().url());
     return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Minty logout stub</title>' });
   });
-  await page.route(`${BACKEND_URL}/api/v1/auth/logout`, (route: Route) => {
+  await page.route(`${PAYMENT_REQUEST_API_URL}/api/v1/auth/logout`, (route: Route) => {
     if (route.request().method() !== 'OPTIONS') run.logouts.push(route.request().url());
     return route.fulfill({ status: 204, headers: cors(route) });
   });
@@ -167,7 +167,7 @@ test.describe('payment settings: leave without saving', () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Discard changes' }).click();
 
-    await expect(page).toHaveURL(`${FLASK_URL}/entity/settings/users/${run.creds.entityId}?from=bills`);
+    await expect(page).toHaveURL(`${PETTY_CASH_URL}/entity/settings/users/${run.creds.entityId}?from=bills`);
     expect(run.prompts).toEqual([]);
   });
 

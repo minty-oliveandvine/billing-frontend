@@ -6,7 +6,7 @@ import { Suspense, useState, useRef, useEffect } from "react";
 import { ModuleButton } from "@/components/ModuleButton";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { getAuth, setAuth } from "@/lib/auth";
-import { MINTY_MODULE_URL as MODULE1_URL } from "@/lib/mintyUrls";
+import { MINTY_MODULE_URL } from "@/lib/mintyUrls";
 import { API_BASE } from "@/lib/apiBase";
 
 const MIN_LOADING_MS = 800;
@@ -71,8 +71,8 @@ function ModuleSelectionContent() {
 
   const module1Href =
     entityIdRef.current && tokenRef.current
-      ? `${MODULE1_URL}/entity/${entityIdRef.current}/enter?token=${tokenRef.current}`
-      : `${MODULE1_URL}/entity`;
+      ? `${MINTY_MODULE_URL}/entity/${entityIdRef.current}/enter?token=${tokenRef.current}`
+      : `${MINTY_MODULE_URL}/entity`;
 
   const acronym = entityNameRef.current
     ? entityNameRef.current

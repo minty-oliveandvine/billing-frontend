@@ -1,7 +1,7 @@
 # Error copy
 
 How a failure becomes something a user can read. The copy standard is shared
-across Minty, billing-backend, billing-frontend and onboarding; the canonical
+across Minty, minty-payment-request-api, minty-payment-request-web and minty-onboarding-web; the canonical
 write-up lives in the Minty repo as `docs/features/ERROR_MESSAGE_LEAKS.md`.
 
 ## The standard
@@ -27,7 +27,7 @@ Two clients, both normalising:
 | File | Talks to | Error type |
 |---|---|---|
 | `lib/api.ts` | the Django billing backend (`API_BASE/api/v1`) | `ApiError` |
-| `components/ui/sidebarHost.ts` (`mintyFetch`, `billingApiFetch`) | Flask's `/api/me/profile` and minty-billing-api's `/api/me/subscriptions` - the sidebar's reads | `ApiError` (the backend's `error` sentence, else `HOUSE_FALLBACK`) |
+| `components/ui/sidebarHost.ts` (`mintyFetch`, `billingApiFetch`) | Flask's `/api/me/profile` and minty-subscription-api's `/api/me/subscriptions` - the sidebar's reads | `ApiError` (the backend's `error` sentence, else `HOUSE_FALLBACK`) |
 
 `lib/subscriptionNotice.ts` (Flask's subscription notice) is deliberately silent: a failed
 notice shows nothing and never throws. This app's own payer-portal client (`lib/payerPortal.ts`,

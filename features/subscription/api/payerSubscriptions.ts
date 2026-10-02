@@ -2,7 +2,7 @@
 // Overview makes (2026-09-30); lifted into @minty/shared at Part 3 step 4; change all three (minty-web, here, Flask's port).
 
 /**
- * Every company the person pays for, from minty-billing-api's `GET /api/me/subscriptions` - the
+ * Every company the person pays for, from minty-subscription-api's `GET /api/me/subscriptions` - the
  * read minty-web's portal (08-A) and its My Profile make, so the three screens can never disagree
  * about the figures. Person-scoped: no `X-Entity-Id`; the pages are walked (the API caps a page).
  *

@@ -1,12 +1,12 @@
 // The sidebar - the menu and My Profile - copied from minty-web on 2026-09-30
 // (components/ui/Sidebar.tsx, features/profile). What is pinned is how THIS app draws it and where
-// its items lead from here; Flask's /api/me/profile and minty-billing-api's /api/me/subscriptions
+// its items lead from here; Flask's /api/me/profile and minty-subscription-api's /api/me/subscriptions
 // are stubbed (their own suites pin the data), and so are Flask's /logout and the backend's
 // logout call, so no run signs anybody out.
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { BACKEND_URL, FLASK_URL, handoff, requireCredentials, requireStack, type Credentials } from './helpers';
+import { PAYMENT_REQUEST_API_URL, PETTY_CASH_URL, handoff, requireCredentials, requireStack, type Credentials } from './helpers';
 
-const BILLING_API_URL = process.env.E2E_BILLING_API_URL || 'http://localhost:8004';
+const SUBSCRIPTION_API_URL = process.env.E2E_SUBSCRIPTION_API_URL || 'http://localhost:8000';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -41,7 +41,7 @@ type Stubs = { profile: ProfileBody; patches: unknown[]; patchAnswer?: { status:
 
 async function stubReads(page: Page, creds: Credentials, subscriptions: { status: number; body: unknown } = { status: 200, body: SUBSCRIPTIONS }): Promise<Stubs> {
   const stubs: Stubs = { profile: profileOf(creds), patches: [] };
-  await page.route(`${FLASK_URL}/api/me/profile**`, async (route: Route) => {
+  await page.route(`${PETTY_CASH_URL}/api/me/profile**`, async (route: Route) => {
     const request = route.request();
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     if (request.method() === 'PATCH') {
@@ -54,7 +54,7 @@ async function stubReads(page: Page, creds: Credentials, subscriptions: { status
     }
     return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(stubs.profile) });
   });
-  await page.route(`${BILLING_API_URL}/api/me/subscriptions**`, (route: Route) =>
+  await page.route(`${SUBSCRIPTION_API_URL}/api/me/subscriptions**`, (route: Route) =>
     route.request().method() === 'OPTIONS'
       ? route.fulfill({ status: 204, headers: CORS })
       : route.fulfill({ status: subscriptions.status, headers: CORS, contentType: 'application/json', body: JSON.stringify(subscriptions.body) }),
@@ -92,7 +92,7 @@ test.describe('the sidebar', () => {
     await expect(card).toContainText('Trial ending1entity');
     await expect(card.getByRole('link', { name: 'Manage Subscription' })).toHaveAttribute(
       'href',
-      new RegExp(`^${FLASK_URL}/entity/${creds.entityId}/enter\\?token=.+&next=${encodeURIComponent('/handoff/minty-web?next=%2Fsubscription').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+      new RegExp(`^${PETTY_CASH_URL}/entity/${creds.entityId}/enter\\?token=.+&next=${encodeURIComponent('/handoff/minty-web?next=%2Fsubscription').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
     );
 
     await profile.getByRole('button', { name: 'Back to the menu' }).click();
@@ -110,7 +110,7 @@ test.describe('the sidebar', () => {
     await page.getByRole('banner').getByRole('button', { name: 'Open navigation menu' }).click();
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
     await expect(nav).toBeVisible();
-    const enter = `${FLASK_URL}/entity/${creds.entityId}/enter?token=`;
+    const enter = `${PETTY_CASH_URL}/entity/${creds.entityId}/enter?token=`;
 
     await expect(nav.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('href', '/settings');
     await expect(nav.getByRole('link', { name: 'Bills', exact: true })).toHaveAttribute('href', '/');
@@ -167,7 +167,7 @@ test.describe('the sidebar', () => {
     let answer = { status: 404, body: { error: 'not_found' } as unknown };
     await stubReads(page, creds);
     // registered after stubReads, so it answers first (Playwright runs the newest route first)
-    await page.route(`${BILLING_API_URL}/api/me/subscriptions**`, (route: Route) => {
+    await page.route(`${SUBSCRIPTION_API_URL}/api/me/subscriptions**`, (route: Route) => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
       reads += 1;
       return route.fulfill({ status: answer.status, headers: CORS, contentType: 'application/json', body: JSON.stringify(answer.body) });
@@ -191,14 +191,14 @@ test.describe('the sidebar', () => {
   test("Logout ends the session everywhere: this app's cookies go, then Minty's /logout", async ({ page }) => {
     const creds = requireCredentials();
     await stubReads(page, creds);
-    await page.route(`${BACKEND_URL}/api/v1/auth/logout`, (route) => route.fulfill({ status: 204, headers: CORS }));
-    await page.route(`${FLASK_URL}/logout`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Minty logout stub</title>' }));
+    await page.route(`${PAYMENT_REQUEST_API_URL}/api/v1/auth/logout`, (route) => route.fulfill({ status: 204, headers: CORS }));
+    await page.route(`${PETTY_CASH_URL}/logout`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Minty logout stub</title>' }));
     await handoff(page, creds, '/');
 
     await page.getByRole('banner').getByRole('button', { name: 'Open navigation menu' }).click();
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Logout', exact: true }).click();
 
-    await expect(page).toHaveURL(`${FLASK_URL}/logout`);
+    await expect(page).toHaveURL(`${PETTY_CASH_URL}/logout`);
     const cookies = await page.context().cookies();
     expect(cookies.find((c) => c.name === 'billing_token')?.value ?? '').toBe('');
   });

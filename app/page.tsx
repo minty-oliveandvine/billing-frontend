@@ -6,7 +6,7 @@ import { PaymentRequestView } from "@/components/payment-request";
 import { ModuleGate } from "@/components/ModuleGate";
 import { SubscriptionNoticeModal } from "@/components/SubscriptionNoticeModal";
 import { getAuth, type AuthInfo } from "@/lib/auth";
-import { fetchXeroStatus, fetchMe } from "@/lib/api";
+import { fetchXeroStatus } from "@/lib/api";
 import {
   claimSubscriptionNotice,
   fetchSubscriptionNotice,
@@ -51,7 +51,6 @@ export default function Home() {
     setAuthState(a);
     if (a?.token) {
       fetchXeroStatus().then(setXeroConnected);
-      fetchMe().then((profile) => console.log("Profile:", profile));
     }
   }, []);
 

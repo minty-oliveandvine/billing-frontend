@@ -921,10 +921,6 @@ export function createEntityBillContact(payload: {
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
-export function fetchMe(): Promise<unknown> {
-  return apiFetch("/auth/me");
-}
-
 /**
  * Tells the server the user is signing out, then resolves either way.
  *

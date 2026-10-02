@@ -4,19 +4,19 @@
 // Flask's login-gated `/handoff/minty-web`, with the original query string. The forward comes
 // BEFORE the cookie check, so a link opened with no billing cookie goes there too.
 //
-// Only Next has to answer: the specs read the redirect, they do not follow it. E2E_FLASK_URL must
-// be the Minty origin the Next server resolves (lib/mintyEnv.ts; both default to :5001).
+// Only Next has to answer: the specs read the redirect, they do not follow it. E2E_PETTY_CASH_URL must
+// be the Minty origin the Next server resolves (lib/mintyEnv.ts; both default to :8010).
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import { FLASK_URL, reachable } from './helpers';
+import { PETTY_CASH_URL, reachable } from './helpers';
 
-const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3020';
 
-const handoff = (next: string) => `${FLASK_URL}/handoff/minty-web?${new URLSearchParams({ next }).toString()}`;
+const handoff = (next: string) => `${PETTY_CASH_URL}/handoff/minty-web?${new URLSearchParams({ next }).toString()}`;
 
 /** Old address -> where it must go now. */
 const FORWARDS: Array<[string, string]> = [
-  ['/profile', `${FLASK_URL}/profile?from=bills`],
-  ['/profile?entity_id=abc-123', `${FLASK_URL}/profile?entity_id=abc-123&from=bills`],
+  ['/profile', `${PETTY_CASH_URL}/profile?from=bills`],
+  ['/profile?entity_id=abc-123', `${PETTY_CASH_URL}/profile?entity_id=abc-123&from=bills`],
   ['/profile/subscriptions', handoff('/subscription/subscriptions')],
   ['/profile/subscriptions?q=acme&page=2', handoff('/subscription/subscriptions?q=acme&page=2')],
   ['/profile/subscriptions/incoming', handoff('/subscription/subscriptions/incoming')],
@@ -24,7 +24,7 @@ const FORWARDS: Array<[string, string]> = [
   ['/profile/subscriptions/subscriber?entity=e-7', handoff('/subscription/subscriptions/subscriber?entity=e-7')],
   ['/profile/billing', handoff('/subscription/billing')],
   ['/profile/invoices', handoff('/subscription/billing')],
-  ['/profile/no-such-page?entity_id=abc-123', `${FLASK_URL}/profile?entity_id=abc-123&from=bills`],
+  ['/profile/no-such-page?entity_id=abc-123', `${PETTY_CASH_URL}/profile?entity_id=abc-123&from=bills`],
 ];
 
 async function locationOf(request: APIRequestContext, path: string, cookie?: string): Promise<{ status: number; location: string }> {
@@ -34,7 +34,7 @@ async function locationOf(request: APIRequestContext, path: string, cookie?: str
 
 test.describe('old /profile addresses forward to minty-web through Minty', () => {
   test.beforeEach(async () => {
-    test.skip(!(await reachable(`${BASE_URL}/module-selection`)), 'Next (:3000) is not answering');
+    test.skip(!(await reachable(`${BASE_URL}/module-selection`)), 'Next (:3020) is not answering');
   });
 
   for (const [from, to] of FORWARDS) {

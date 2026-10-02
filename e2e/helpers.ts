@@ -6,7 +6,7 @@
 // (blueprints/entity/routes/modules.py::_generate_module_token) and sends the browser to
 // /landing?token=... here, which stores it in the `billing_token` cookie. A test cannot go
 // through Minty's login (email OTP), but it holds the same SECRET_KEY, so it mints the same
-// token. Nothing is bypassed: billing-backend verifies signature, expiry and claims exactly
+// token. Nothing is bypassed: minty-payment-request-api verifies signature, expiry and claims exactly
 // as it does Flask's, and the page reads the module claims out of it.
 import { createHmac } from 'node:crypto';
 import { test, type Page } from '@playwright/test';
@@ -52,12 +52,12 @@ export async function reachable(url: string): Promise<boolean> {
   }
 }
 
-export const BACKEND_URL = process.env.E2E_BACKEND_URL || 'http://localhost:8000';
-export const FLASK_URL = process.env.E2E_FLASK_URL || 'http://localhost:5001';
+export const PAYMENT_REQUEST_API_URL = process.env.E2E_PAYMENT_REQUEST_API_URL || 'http://localhost:8020';
+export const PETTY_CASH_URL = process.env.E2E_PETTY_CASH_URL || 'http://localhost:8010';
 
 export async function requireStack(): Promise<void> {
-  test.skip(!(await reachable((process.env.E2E_BASE_URL || 'http://localhost:3000') + '/module-selection')), 'Next (:3000) is not answering');
-  test.skip(!(await reachable(BACKEND_URL + '/api/docs')) && !(await reachable(BACKEND_URL + '/')), 'billing-backend (:8000) is not answering');
+  test.skip(!(await reachable((process.env.E2E_BASE_URL || 'http://localhost:3020') + '/module-selection')), 'Next (:3020) is not answering');
+  test.skip(!(await reachable(PAYMENT_REQUEST_API_URL + '/api/docs')) && !(await reachable(PAYMENT_REQUEST_API_URL + '/')), 'minty-payment-request-api (:8020) is not answering');
 }
 
 /** Arrive the way Minty sends people: /landing stores the token and forwards to ``next``. */

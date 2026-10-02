@@ -14,7 +14,7 @@ export type AccountCodeRow = { id: string; label: string };
 
 export function AccountCodeSettings() {
   // Allowlist, not denylist. `isElevated` is {accountant, admin, super_admin}
-  // minus view-only — the same set billing-backend enforces on these writes via
+  // minus view-only — the same set minty-payment-request-api enforces on these writes via
   // check_edit_bill_settings. A denylist of cashier/shop_manager let entity_base
   // through to an editable page whose every Save 403'd.
   const { isViewOnly, isElevated } = useUserRole();

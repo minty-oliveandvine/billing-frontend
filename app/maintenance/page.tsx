@@ -6,10 +6,10 @@ export const metadata: Metadata = {
   description: "Minty is down for scheduled maintenance.",
 };
 
-/** Set `NEXT_PUBLIC_MAINTENANCE_SHOW_NEW_LINK=1` (or `true`) when the new app link should appear in the footer. */
+/** Set `MAINTENANCE_SHOW_NEW_LINK=1` (or `true`) when the new app link should appear in the footer. */
 const showNewAppLink =
-  process.env.NEXT_PUBLIC_MAINTENANCE_SHOW_NEW_LINK === "1" ||
-  process.env.NEXT_PUBLIC_MAINTENANCE_SHOW_NEW_LINK === "true";
+  process.env.MAINTENANCE_SHOW_NEW_LINK === "1" ||
+  process.env.MAINTENANCE_SHOW_NEW_LINK === "true";
 
 export default function MaintenancePage() {
   return (

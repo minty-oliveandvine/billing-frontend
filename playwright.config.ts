@@ -1,5 +1,5 @@
 // Browser tests for the payment-request module, its settings page and the sidebar. They run against a stack
-// that is ALREADY UP (Next :3000, billing-backend :8000, Minty :5001) -- nothing is started here,
+// that is ALREADY UP (Next :3020, minty-payment-request-api :8020, Minty :8010) -- nothing is started here,
 // for the reasons onboarding/e2e gives. See e2e/README.md.
 import { defineConfig, devices } from '@playwright/test';
 
@@ -13,7 +13,7 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3020',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',

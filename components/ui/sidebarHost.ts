@@ -11,19 +11,20 @@
  * - where the menu's items lead from this app (Minty's `/enter` and `/handoff/minty-web`);
  * - how this app locks the page's scroll (`#app-scroll-root`, not `body`, below 1280 px);
  * - how it logs out (every app's Logout ends the session everywhere - the user's call);
- * - how it reaches Flask (`/api/me/profile`) and minty-billing-api (`/api/me/subscriptions`)
+ * - how it reaches Flask (`/api/me/profile`) and minty-subscription-api (`/api/me/subscriptions`)
  *   with the token it holds, and what a 401 means here (one refresh, then back to Minty).
  */
 
 import { ApiError, logoutSession } from "@/lib/api";
 import { pushAppScrollLock } from "@/lib/appScrollRoot";
+import { env } from "@/lib/env";
 import { clearAuth, getAuth, isTokenExpiringSoon, redirectToLogin, refreshToken } from "@/lib/auth";
 import { guardLeave } from "@/lib/leaveGuard";
 import { getModuleClaims } from "@/lib/moduleClaims";
 import { buildMintyEnterUrl, buildMintyProfileUrl, MINTY_MODULE_URL } from "@/lib/mintyUrls";
 
-/** minty-billing-api - the Subscriptions Overview's read. Read statically so Next inlines it. */
-const BILLING_API_URL = (process.env.NEXT_PUBLIC_BILLING_API_URL ?? "http://localhost:8004").replace(/\/+$/, "");
+/** minty-subscription-api - the Subscriptions Overview's read (`SUBSCRIPTION_API_URL`, lib/env.ts). */
+const SUBSCRIPTION_API_URL = env.SUBSCRIPTION_API_URL;
 
 /** minty-web's pages the menu leads to - reached through Flask's login-gated re-handoff. */
 const MINTY_WEB_SUBSCRIPTIONS = "/subscription";
@@ -197,9 +198,9 @@ export function mintyFetch<T = unknown>(path: string, init: HubRequest = {}): Pr
   return bearerJson<T>(MINTY_MODULE_URL.replace(/\/+$/, ""), path, init);
 }
 
-/** minty-billing-api's person-scoped `/api/me/*` (minty-web's `apiFetch`, without a company). */
+/** minty-subscription-api's person-scoped `/api/me/*` (minty-web's `apiFetch`, without a company). */
 export function billingApiFetch<T = unknown>(path: string, init: HubRequest = {}): Promise<T> {
-  return bearerJson<T>(BILLING_API_URL, path, init);
+  return bearerJson<T>(SUBSCRIPTION_API_URL, path, init);
 }
 
 /** The token this app holds - what the viewer read is cached by. */

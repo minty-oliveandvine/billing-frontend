@@ -36,6 +36,18 @@ copyPdfjsAssets();
 const nextConfig: NextConfig = {
   /** Slightly smaller responses; security-through-obscurity only. */
   poweredByHeader: false,
+  /**
+   * The plain-named variables this app reads, inlined at build time into the client bundle,
+   * the server and middleware.ts. Raw values only ("" when unset - Next skips an undefined
+   * key, leaving `process.env.X` un-inlined); defaults and the trailing-slash strip live in
+   * lib/env.ts. MAINTENANCE_SHOW_NEW_LINK is the maintenance page's optional footer flag.
+   */
+  env: {
+    PETTY_CASH_URL: process.env.PETTY_CASH_URL ?? "",
+    PAYMENT_REQUEST_API_URL: process.env.PAYMENT_REQUEST_API_URL ?? "",
+    SUBSCRIPTION_API_URL: process.env.SUBSCRIPTION_API_URL ?? "",
+    MAINTENANCE_SHOW_NEW_LINK: process.env.MAINTENANCE_SHOW_NEW_LINK ?? "",
+  },
 };
 
 export default nextConfig;

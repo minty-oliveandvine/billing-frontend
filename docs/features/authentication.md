@@ -1,11 +1,11 @@
-# Authentication — billing-frontend's half
+# Authentication — minty-payment-request-web's half
 
 Nobody signs in here. Minty (Flask) authenticates the person, mints a short-lived JWT and
 sends the browser to this app; everything after that is carrying that token to
-billing-backend, and — for the subscription notice and the sidebar — straight to Minty and
-minty-billing-api. The system-wide picture
-is `Minty/docs/features/authentication.md`; billing-backend's verification is
-`billing-backend/docs/features/authentication.md`.
+minty-payment-request-api, and — for the subscription notice and the sidebar — straight to Minty and
+minty-subscription-api. The system-wide picture
+is `Minty/docs/features/authentication.md`; minty-payment-request-api's verification is
+`minty-payment-request-api/docs/features/authentication.md`.
 
 ## Arriving: `/landing`
 
@@ -32,7 +32,7 @@ entity list with Minty still signed in.
 ## Using the token
 
 `lib/api.ts::apiFetch` sends `Authorization: Bearer <token>` and `X-Entity-Id` on every
-call to billing-backend (`NEXT_PUBLIC_MODULE2_BACKEND_URL`). The JWT itself lives **30
+call to minty-payment-request-api (`PAYMENT_REQUEST_API_URL`). The JWT itself lives **30
 minutes**; the cookie 8 hours; `lib/auth.ts::refreshToken` calls
 `POST /api/auth/token/refresh` when the token is expiring soon (`isTokenExpiringSoon`) so
 an open tab keeps working — a 401 that survives a refresh sends the person back to Minty
@@ -49,31 +49,31 @@ membership on every call — the database decides, not the claim
 `useUserRole()` decides which actions render: cashiers and shop managers create and
 edit; accountant / admin / super_admin (the *elevated* roles) also record payments,
 return, void and publish. The backend refuses the rest regardless
-(`billing-backend/core/permissions.py`).
+(`minty-payment-request-api/core/permissions.py`).
 
 ## The subscription notice talks to Minty directly
 
 The landing page's subscription notice (`lib/subscriptionNotice.ts`,
 `components/SubscriptionNoticeModal.tsx`) fetches Flask's
 `GET /api/entity/<id>/subscription-notice` with the same billing JWT (the origin from
-`lib/mintyEnv.ts`): Minty signed it, so Minty verifies it. Two kinds come back, `past_due` and
+`PETTY_CASH_URL`, `lib/mintyEnv.ts`): Minty signed it, so Minty verifies it. Two kinds come back, `past_due` and
 `pending_cancel` (no trial kind since 2026-10-01). Its button opens `settings_path` - a Flask path
 with its own query, e.g. `/handoff/minty-web?next=%2Fsubscription%2Fentities%2F<id>%2Fmodules&entity_id=<id>`
 - through `/entity/<id>/enter` (`buildMintyEnterUrl`, which URL-encodes it whole as `next`). A
 failed notice shows nothing.
 
-## The sidebar talks to Flask and minty-billing-api directly
+## The sidebar talks to Flask and minty-subscription-api directly
 
 My Profile reads and saves Flask's `/api/me/profile`, the header's initials read it once per
-token, and the Subscriptions Overview reads minty-billing-api's `/api/me/subscriptions` — all
+token, and the Subscriptions Overview reads minty-subscription-api's `/api/me/subscriptions` — all
 with this app's token (`components/ui/sidebarHost.ts`; [sidebar.md](sidebar.md)).
 
 ## Configuration
 
-`NEXT_PUBLIC_MODULE2_BACKEND_URL` (billing-backend), `NEXT_PUBLIC_MODULE1_URL` or
-`NEXT_PUBLIC_APP_ENV` + `NEXT_PUBLIC_MODULE1_URL_<ENV>` (Minty — see the apex/www trap in
-the `README`), `NEXT_PUBLIC_BILLING_API_URL` (minty-billing-api, default
-`http://localhost:8004`); all inlined at build time.
+`PAYMENT_REQUEST_API_URL` (minty-payment-request-api, default `http://localhost:8020`),
+`PETTY_CASH_URL` (Minty, default `http://localhost:8010` — one variable, no environment-name
+switch), `SUBSCRIPTION_API_URL` (minty-subscription-api, default `http://localhost:8000`); all
+read in `lib/env.ts` and inlined at build time (`next.config.ts` `env`).
 
 ## Tests
 

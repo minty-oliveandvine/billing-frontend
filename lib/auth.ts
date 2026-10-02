@@ -153,7 +153,7 @@ export function isTokenExpired(): boolean {
 /**
  * Hands the user back to Flask Module 1 when this app's billing JWT has run out.
  *
- * Output: navigates the browser to `<MODULE1_URL>/` — Minty's landing page, and
+ * Output: navigates the browser to `<PETTY_CASH_URL>/` — Minty's landing page, and
  * nothing more specific. It forwards to the entity list when the Flask session
  * is still alive (the usual case: it outlives the 30-minute JWT) and to the login
  * form when it isn't. Picking a company there mints a fresh token through the

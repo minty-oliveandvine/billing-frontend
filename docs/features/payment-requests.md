@@ -1,7 +1,7 @@
 # Payment requests — the list, the dialog, the detail page
 
-The screens of the bills module. Every write goes to billing-backend (`lib/api.ts`), and
-that service's rules are the ones that hold (`billing-backend/docs/features/payment-requests.md`);
+The screens of the bills module. Every write goes to minty-payment-request-api (`lib/api.ts`), and
+that service's rules are the ones that hold (`minty-payment-request-api/docs/features/payment-requests.md`);
 this page is what the person sees and where each piece of the screen lives.
 
 ## The list (`/`, `components/payment-request/PaymentRequestView.tsx`)

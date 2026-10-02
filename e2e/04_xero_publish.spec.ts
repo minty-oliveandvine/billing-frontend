@@ -1,5 +1,5 @@
 // Publishing a payment request to Xero, for real: the ACCPAY invoice, the attachment upload,
-// and the token hand-off (billing-backend asks Minty for a live access token when the stored
+// and the token hand-off (minty-payment-request-api asks Minty for a live access token when the stored
 // one has expired - the one contract nothing else in this suite exercises). Runs only with
 // E2E_XERO=1, against a shop linked to a Xero Demo Company by hand; every run writes a real
 // bill into that organisation, which is what a Demo Company is for.

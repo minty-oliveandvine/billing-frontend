@@ -1,4 +1,4 @@
-# Development image for the billing (Module 2) frontend (Next.js 16).
+# Development image for minty-payment-request-web (Payment Request, Module 2; Next.js 16).
 # Optimized for local dev with hot-reload — source is bind-mounted at runtime
 # (see docker/stack/docker-compose.yml in the Minty repo), so we only bake in
 # the dependencies here.
@@ -15,9 +15,10 @@ RUN npm ci
 # COPY it here. The bind mount excludes node_modules (see compose) to keep the
 # container's installed deps.
 
-# Next.js dev server port (the onboarding frontend uses 3001).
-EXPOSE 3000
+# Next.js dev server port (minty-onboarding-web uses 3030).
+EXPOSE 3020
 
-# `npm run dev` already passes -H 0.0.0.0 (see package.json), so the dev server
-# is reachable from the host.
-CMD ["npm", "run", "dev"]
+# Bound to 0.0.0.0 so the dev server is reachable from the host; the port is the
+# host-injected PORT, else 3020 (the same as `npm run dev`). Shell form so
+# ${PORT} expands.
+CMD npx next dev -H 0.0.0.0 -p ${PORT:-3020}

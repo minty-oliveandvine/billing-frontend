@@ -1,7 +1,7 @@
 # Features — the payment-request app
 
-`billing-frontend` is the Next.js browser of the bills module. People arrive from Minty
-with a token, work on payment requests against billing-backend, set the payment account codes,
+`minty-payment-request-web` is the Next.js browser of the bills module. People arrive from Minty
+with a token, work on payment requests against minty-payment-request-api, set the payment account codes,
 and see their profile and subscriptions overview in the sidebar drawer (managing subscriptions
 is minty-web's). Nothing is decided here that a backend does not re-check.
 

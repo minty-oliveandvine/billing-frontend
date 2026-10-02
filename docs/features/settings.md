@@ -68,7 +68,7 @@ jump still leaves without asking; the page warns once in the console.
 With codes on the list and none ticked, **Save is off** and "Pick at least one account code."
 shows under it (plain text, never a `title`). A save sends the rows turning ON first, then the
 rows turning OFF (each batch `Promise.allSettled`), so it never passes through a moment with
-nothing ticked. billing-backend enforces the same rule: unticking the entity's last ticked code
+nothing ticked. minty-payment-request-api enforces the same rule: unticking the entity's last ticked code
 answers **409** "Keep at least one account code ticked." and writes nothing; the toast shows
 that sentence. These ticks are the payment module's own (`entity_bill_account_xero.is_active`);
 they no longer touch Petty Cash's `account_info.status` (that mirror was removed 2026-10-01 - it
